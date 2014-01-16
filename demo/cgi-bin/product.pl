@@ -1,9 +1,11 @@
 #!/usr/bin/perl
 
 use strict;
+use FindBin qw($Bin);
+use lib "$Bin/../../lib"; # include project lib
+
 use DBI();
 use CGI::OptimalQuery();
-use FindBin qw($Bin);
 
 chdir "$Bin/..";
 

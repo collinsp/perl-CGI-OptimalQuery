@@ -23,7 +23,7 @@ Step 3) Configure Apache
   Alias /OptimalQuery/ /usr/local/share/perl5/CGI/OptimalQuery/Resources/
 
   # add a script alias to view the demos
-  ScriptAlias /OptimalQueryDemo/ /path/to/perl-CGI-OptimalQuery/CGI/OptimalQuery/demo/cgi-bin/
+  ScriptAlias /OptimalQueryDemo/ /path/to/perl-CGI-OptimalQuery/demo/cgi-bin/
 
   # restart apache
   sudo apachectl restart

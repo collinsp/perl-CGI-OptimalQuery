@@ -9,10 +9,11 @@ use CGI::OptimalQuery();
 
 chdir "$Bin/..";
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=test_data.db","","");
+my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","");
 
 my %schema = (
   'dbh' => $dbh,
+  'savedSearchUserID' => 12345,
   'title' => 'The Product Catalog',
   'select' => {
     'U_ID' => ['product', 'product.id', 'SYS ID', { always_select => 1 }],

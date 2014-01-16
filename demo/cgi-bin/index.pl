@@ -1,18 +1,37 @@
 #!/usr/bin/perl
 
 use strict;
+use FindBin qw($Bin);
+use lib "$Bin/../../lib"; # include project lib
+
+use DBI();
 use CGI();
+use CGI::OptimalQuery();
+
+chdir "$Bin/..";
+
+my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","");
+my $q = new CGI();
+my $userid = 12345;
+
+my $saved_searches_html = CGI::OptimalQuery::get_saved_search_list($q, $dbh, $userid);
 
 print CGI::header(), 
 "<!DOCTYPE html>
 <html>
 <body>
-  <h1>My Simple Dashboard</h1>
-  <ul>
-    <li><a href=inventory.pl target=_blank>inventory</a>
-    <li><a href=people.pl target=_blank>people</a>
-    <li><a href=product.pl target=_blank>product</a>
-    <li><a href=manufact.pl target=_blank>manufacturers</a>
-  </ul>
+<form method=post>
+<h1>My Simple Dashboard <button type=submit>reload</button></h1>
+<ul>
+  <li><a href=inventory.pl target=_blank>inventory</a>
+  <li><a href=people.pl target=_blank>people</a>
+  <li><a href=product.pl target=_blank>product</a>
+  <li><a href=manufact.pl target=_blank>manufacturers</a>
+</ul>
+
+<h2>Saved Searches</h2>
+$saved_searches_html
+</form>
+
 </body>
 </html>";

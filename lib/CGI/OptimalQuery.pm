@@ -120,7 +120,14 @@ sub get_saved_search_list {
     $buffer .= "<tr><td class='OQ_ss_query_title'><a href=# onclick=\"opwin('$uri?OQLoadSavedSearch=$id".$stateArgs."#OQtop','OQLoadSavedSearch$id','resizable,scrollbars',1024,768); return false;\">".CGI::escapeHTML($user_title)."</a></td><td class='OQ_ss_cmds'><button onclick=\"this.form.OQ_remove_saved_search_id.value = '$id'; this.form.submit();\" type='button'>delete</button></td></tr>";
   }
   $sth->finish();
-  $buffer .= "</table><input type='hidden' name='OQ_remove_saved_search_id' />" if $buffer;
+  $buffer .= "</table><input type='hidden' name='OQ_remove_saved_search_id' />
+<script>
+if (! window.opwin) {
+  window.opwin = function(lnk,target,opts) {
+    window.open(lnk,target,opts);
+  };
+}
+</script>" if $buffer;
   return $buffer;
 }
 

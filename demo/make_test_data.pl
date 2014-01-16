@@ -1,15 +1,20 @@
 #!/usr/bin/perl
 
 use strict;
+use FindBin qw($Bin);
 use DBI();
 
-my $DBFILE = "test_data.db";
 my $NUM_MANUFACT = 100;
 my $NUM_PRODUCT = 100000;
 my $NUM_PEOPLE = 1000;
 my $NUM_INVENTORY = 200000;
 
-unlink $DBFILE;
+chdir $Bin;
+
+my $DBFILE = "db/dat.db";
+system("rm -rf db") if -d "db";
+mkdir "db";
+
 my $dbh = DBI->connect("dbi:SQLite:dbname=$DBFILE","","");
 
 $dbh->do("
@@ -97,6 +102,17 @@ foreach my $id (1 .. $NUM_INVENTORY) {
 
   $sth->execute($id, $barcode, $product_id, $owner_id, $date_acquired, $date_disposed);
 }
+
+$dbh->do("
+CREATE TABLE oq_saved_search (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER,
+  uri TEXT NOT NULL,
+  oq_title TEXT NOT NULL,
+  user_title TEXT NOT NULL,
+  params TEXT,
+  CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
+)");
 $dbh->do("CREATE INDEX idx_manufact_name ON manufact (name)");
 $dbh->do("CREATE INDEX idx_product_name ON product (name)");
 $dbh->do("CREATE INDEX idx_product_prodno ON product (prodno)");
@@ -106,3 +122,5 @@ $dbh->do("CREATE INDEX idx_inventory_product ON inventory(product)");
 $dbh->do("CREATE INDEX idx_inventory_owner ON inventory(owner)");
 $dbh->commit();
 $dbh->disconnect();
+
+system("chmod -R ugo+rwX db");

@@ -1461,6 +1461,7 @@ sub type_map {
   40 => 'clob',
   91 => 'date',
   93 => 'date',
+  95 => 'date',
   'INTEGER' => 'num',
   'TEXT' => 'char',
   'VARCHAR' => 'char'
@@ -1600,7 +1601,7 @@ LIMIT 0 ";
       my $name = $selectColAliasOrder[$i];
       my $type_code = $sth->{TYPE}->[$i];
       my $type = $type_map->{$type_code} or 
-        die "could not find type code: $type_code";
+        die "could not find type code: $type_code for col $name";
       $oq->{'col_types'}->{$selectColTypeOrder[$i]}->{$name} = $type;
 
       # set the type for select, filter, and sort to the default

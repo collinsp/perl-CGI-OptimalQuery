@@ -13,14 +13,11 @@ Step 2) create and populate an sqlite database
 
 Step 3) Configure Apache
 
-  # find your optimalquery resouces directory
-  perl -MCGI::OptimalQuery -e '$_=$INC{"CGI/OptimalQuery.pm"};s/\.pm$/\/Resources\n/;print $_'
-
-  # edit your apache virtualhost
+  # edit an apache virtualhost
   sudo vi /etc/httpd/conf.d/0default.conf
 
   # add an apache alias to the CGI::OptimalQuery Resources directory
-  Alias /OptimalQuery/ /usr/local/share/perl5/CGI/OptimalQuery/Resources/
+  Alias /OptimalQuery/ /path/to/perl-CGI-OptimalQuery/lib/CGI/OptimalQuery/Resources/
 
   # add a script alias to view the demos
   ScriptAlias /OptimalQueryDemo/ /path/to/perl-CGI-OptimalQuery/demo/cgi-bin/

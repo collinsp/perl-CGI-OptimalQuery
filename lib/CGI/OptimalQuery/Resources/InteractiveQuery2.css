@@ -207,6 +207,28 @@ form.OQform {
   border: 0; 
   background-color: #ddd;
 }
+.OQFilterPanel .rexptypesel {
+  position: relative;
+  width: 200px;
+  margin-top: -11px;
+}
+.OQFilterPanel .rexptypesel input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 180px;
+  z-index: 20;
+}
+.OQFilterPanel .rexptypesel select {
+  position: absolute;
+  z-index: 5;
+  width: 200px;
+  right: 0;
+  z-index: 10;
+  top: 0;
+}
+
+
 
 .LoadingData .OQBlocker, 
 .OQFilterMode .OQBlocker,

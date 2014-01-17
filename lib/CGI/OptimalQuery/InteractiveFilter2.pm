@@ -5,85 +5,8 @@ use warnings;
 no warnings qw( uninitialized );
 use base 'CGI::OptimalQuery::Base';
 
-
+use CGI::OptimalQuery::FilterParser;
 use CGI qw(escapeHTML);
-
-# returns [
-#  'AND' , 'OR',
-#  [1,$numLeftParen,$leftExp,$op,$rightExp,$numRightParen],
-#  [2,$numLeftParen,$namedFilter,$argArray,$numRightParen]
-# ]
-sub parseFilter {
-  my ($o,$f) = @_;
-  $f =~ /\G\s+/gc;
-  my @filter;
-  return \@filter if $f eq '';
-  my $labelMap;
-  while (1) {
-    my $lp=0;
-    my $rp=0;
-    while ($f =~ /\G\(\s*/gc) { $lp++; }
-    if ($f=~/\G(\w+)\s*\(\s*/gc) { 
-      my $namedFilter = $1;
-      die "Invalid named filter $namedFilter at: ".substr($f, 0, pos($f)).' <*> '.substr($f,pos($f))
-        unless exists $$o{schema}{named_filters}{$namedFilter};
-
-      # parse named filter arguments
-      my @args;
-      while (1) {
-        # closing paren so end
-        if ($f=~/\G\)\s*/gc) {
-          last;
-        }
-
-        # single quoted value OR double quoted value OR no whitespace literal
-        elsif ($f=~/\G\'([^\']*)\'\s*/gc || $f=~/\G\"([^\"]*)\"\s*/gc || $f=~/\G(\w+)\s*/gc) {
-          push @args, $1;
-        }
-
-        # , => : separator so do nothing
-        elsif ($f =~ /\G(\,|\=\>|\:)\s*/gc) {
-          # noop
-        }
-        else {
-          die "Invalid named filter $namedFilter - missing right paren at: ".substr($f, 0, pos($f)).' <*> '.substr($f,pos($f));
-        }
-      }
-      while ($f =~ /\G\)\s*/gc) { $rp++; }
-      push @filter, [2,$lp,$namedFilter,\@args,$rp];
-    }
-    else {
-      my $lexp;
-      if ($f=~/\G\[([^\]]+)\]\s*/gc || $f=~/\G(\w+)\s*/gc) { $lexp = $1; }
-      else { die 'Missing left expression: '.substr($f, 0, pos($f)).' <*> '.substr($f,pos($f)); }
-      if (! exists $$o{schema}{select}{$lexp}) {
-        if (! $labelMap) {
-          $labelMap = {};
-          while (my ($k,$v) = each %{ $$o{schema}{select} }) {
-            my $v = uc($$v[2]); $v =~ s/\s//g;
-            $$labelMap{uc($k)}=$k;
-            $$labelMap{uc($$v[2])}=$k;
-          }
-        }
-        $lexp = uc($lexp); $lexp =~ s/\s//g;
-        $lexp=$$labelMap{$lexp};
-        die "Invalid field $lexp at: ".substr($f, 0, pos($f)).' <*> '.substr($f,pos($f))
-          unless $lexp;
-      }
-      my $op;
-      if ($f =~ /\G(\!\=|\=|\<\=|\>\=|\<|\>|like|not\ like|contains|not\ contains)\s*/gc) { $op = $1; }
-      else { die 'Missing operator: '.substr($f, 0, pos($f)).' <*> '.substr($f,pos($f)); }
-      my $rexp;
-      if ($f=~/\G\'([^\']*)\'\s*/gc || $f=~/\G\"([^\"]*)\"\s*/gc || $f=~/\G(\w+)\s*/gc) { $rexp = $1; }
-      else { die 'Missing right expression: '.substr($f, 0, pos($f)).' <*> '.substr($f,pos($f)); }
-      while ($f =~ /\G\)\s*/gc) { $rp++; }
-      push @filter, [1,$lp, $lexp, $op, $rexp, $rp];
-    }
-    if ($f =~ /(AND|OR)\s*/gci) { push @filter, uc($1); }
-    else { last; }
-  }
-  return \@filter;
-}
 
 sub output {
   my $o = shift;
@@ -96,14 +19,20 @@ sub output {
   } sort { $$s{$a}[2] cmp $$s{$b}[2] } keys %$s;
   my @op = (qw( = != < <= > >= like ), 'not like', 'contains', 'not contains');
 
-  my $parsedFilter = parseFilter($o,$$o{q}->param('filter'));
+  my $parsedFilter = CGI::OptimalQuery::FilterParser::parseFilter($o,$$o{q}->param('filter'));
   foreach my $f (@$parsedFilter) {
     $buf .= "<tr>";
-    if (ref($f) ne 'ARRAY') {
+
+    my $typenum = $$f[0] if ref($f) eq 'ARRAY';
+
+    if (! $typenum) {
       $buf .= "<td colspan=6><select class=logicop><option>AND<option";
       $buf .= " selected" if $f eq 'OR';
       $buf .= ">OR</select></td>";
-    } elsif ($$f[0]==1) {
+    }
+
+    # else if (selectalias operator literal)
+    elsif ($typenum == 1 || $typenum == 3) {
       $buf .= "<td>";
       my ($type,$numLeftParen,$leftExp,$operator,$rightExp,$numRightParen) = @$f;
       if ($numLeftParen == 0) {
@@ -130,7 +59,17 @@ sub output {
         $buf .= " selected" if $op eq $operator;
         $buf .= ">$op";
       }
-      $buf .= "</select></td><td><input type=text class=rexp value='".escapeHTML($rightExp)."'></td><td>";
+      $buf .= "</select></td><td><div class=rexptypesel><select class=rexp><optgroup label='Either: '><option value=''> type in a value </optgroup><optgroup label='OR select another field'>";
+      my $rightSelectedField = $rightExp if $type == 3;
+      foreach my $c (@cols) {
+        $buf .= "<option value='[".escapeHTML($c)."]'";
+        $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char';
+        $buf .= " selected" if $c eq $rightSelectedField;
+        $buf .= ">".escapeHTML($$o{schema}{select}{$c}[2]);
+      }
+      $buf .= "</optgroup></select><input type=text class=rexp value='".escapeHTML($rightExp)."'";
+      $buf .= " style='display: none;'" if $rightSelectedField;
+      $buf .= "></div></td><td>";
       if ($numRightParen == 0) {
         $buf .= "<button type=button class=rp>)</button>";
       } else {
@@ -143,7 +82,10 @@ sub output {
         $buf .= ">)))</select>";
       }
       $buf .= "</td><td><button type=button class=DeleteFilterElemBut>x</button></td>";
-    } else {
+    }
+
+    # else if (namedfilter, arguments)
+    elsif ($typenum == 2) {
       $buf .= "<td>";
       my ($type,$numLeftParen,$namedFilter,$argArray,$numRightParen) = @$f; 
       if ($numLeftParen == 0) {
@@ -205,6 +147,12 @@ sub output {
       }
       $buf .= "</td><td><button type=button class=DeleteFilterElemBut>x</button></td>";
     }
+
+    else {
+      "invalid typenum: $typenum; this should never happen";
+    }
+
+
     $buf .= "</tr>";
   }
   $buf .= "</table><br>";

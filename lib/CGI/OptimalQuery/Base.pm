@@ -9,6 +9,10 @@ use POSIX();
 use DBIx::OptimalQuery;
 use Data::Dumper;
 
+sub escapeHTML {
+  return defined $_[0] ? CGI::escapeHTML($_[0]) : '';
+}
+
 sub can_embed { 0 }
 
 # alias for output
@@ -16,6 +20,54 @@ sub print {
   my $o = shift;
   $o->output(@_);
 }
+
+# some default tools which are automatically installed in constructor
+my %TOOLS = (
+  'export' => {
+    title => "Export Data",
+    handler => sub {
+      return "
+<label><input type=checkbox class=OQExportAllResultsInd> all results</label>
+<br>
+<strong>download as..</strong><br>
+<a class=OQDownloadCSV href=#>CSV (Excel)</a>,
+<a class=OQDownloadHTML href=#>HTML</a>,
+<a class=OQDownloadXML href=#>XML</a>";
+    }
+  },
+  'savereport' => {
+    title => "Save Report",
+    handler => sub {
+      return " 
+<label>name <input type=text class=SaveReportNameInp></label>
+<button type=button class=OQSaveReportBut>save</button>";
+    }
+  },
+  'loadreport' => {
+    title => 'Load Report',
+    handler => sub {
+      my ($o) = @_;
+      my $ar = $$o{dbh}->selectall_arrayref("
+        SELECT id, user_title
+        FROM oq_saved_search
+        WHERE user_id = ?
+        AND upper(uri) = upper(?)
+        AND oq_title = ?
+        ORDER BY 2", undef, $$o{schema}{savedSearchUserID},
+          $$o{schema}{URI}, $$o{schema}{title});
+      my $buf;
+      foreach my $x (@$ar) {
+        $buf .= "<tr><td><a href=# class=OQLoadSavedSearch data-id=$$x[0]>".escapeHTML($$x[1])."</a></td><td><button type=button class=OQDeleteSavedSearchBut>x</button></td></tr>";
+      }
+      if (! $buf) {
+        $buf = "<em>none</em>";
+      } else {
+        $buf = "<table>".$buf."</table>";
+      }
+      return $buf;
+    }
+  }
+);
 
 
 sub new { 
@@ -55,6 +107,11 @@ sub new {
   }
 
   $$o{schema}{URI_standalone} ||= $$o{schema}{URI};
+
+  # install the export tool
+  if (! exists $$o{schema}{tools}{export}) {
+    $$o{schema}{tools}{export} = $TOOLS{export};
+  }
 
   # make sure default show is in array notation
   if (! ref($$o{schema}{show}) eq 'ARRAY') {
@@ -121,6 +178,8 @@ sub new {
   # load saved search if defined
   $$o{schema}{savedSearchUserID} ||= undef;
   if ($$o{schema}{savedSearchUserID} =~ /^\d+$/) {
+    $$o{schema}{tools}{savereport} = $TOOLS{savereport};
+    $$o{schema}{tools}{loadreport} = $TOOLS{loadreport};
 
     # request to load a saved search?
     if ($$o{q}->param('OQLoadSavedSearch') =~ /^\d+$/) {
@@ -186,7 +245,7 @@ sub oq  { $_[0]{oq}  }
 
 # ----------- UTILITY METHODS ------------------------------------------------
 
-sub escape_html      { CGI::escapeHTML($_[1]) }
+sub escape_html      { escapeHTML($_[1]) }
 sub escape_uri       { CGI::escape($_[1])     }
 sub escape_js        {
   my $o = shift;
@@ -226,5 +285,104 @@ sub clone {
   return $thing;
 }
 
+
+
+sub sth_execute {
+  my ($o) = @_;
+
+  # load HTML form params or use values in schema
+  for (qw( show filter sort page rows_page module queryDescr hiddenFilter )) {
+    if (defined $$o{q}->param($_)) {
+      $$o{$_} = $$o{q}->param($_);
+    } else {
+      $$o{$_} = $$o{schema}{$_};
+    }
+  }
+
+  # convert show & sort into array
+  if (! ref($$o{show})) {
+    my @ar = split /\,/, $$o{show};
+    $$o{show} = \@ar;
+  } 
+
+  # set default page & rows_page if not already defined
+  $$o{page} ||= 1;
+  $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
+  $$o{rows_page} ||= $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
+  $$o{hiddenFilter} ||= '';
+  $$o{queryDescr} ||= '';
+
+  # if any fields are passed into on_select, ensure they are always selected
+  my $on_select = $$o{q}->param('on_select');
+  if ($on_select =~ /[^\,]+\,(.+)/) {
+    my @fields = split /\,/, $1;
+    for (@fields) {
+      $$o{oq}{'select'}{$_}[3]{always_select}=1
+        if exists $$o{oq}{'select'}{$_};
+    }
+  }
+
+  # if we still don't have something to show then show all cols
+  # that aren't hidden
+  if (! scalar( @{ $$o{show} } )) {
+    for (keys %{ $$o{schema}{select} }) {
+      push @{$$o{show}}, $_ unless $$o{oq}->{'select'}->{$_}->[3]->{is_hidden};
+    }
+  }
+
+  # check schema validity
+  $$o{oq}->check_join_counts() if $$o{schema}{check} && ! defined $$o{q}->param('module');
+
+  # create & execute SQL statement
+  $$o{sth} ||= $$o{oq}->prepare(
+    show   => $$o{show},
+    filter => $$o{filter},
+    hiddenFilter => $$o{hiddenFilter},
+    sort   => $$o{sort} );
+
+  # calculate what the limit is
+  # and make sure page, num_pages, rows_page make sense
+  if ($$o{sth}->count() == 0) {
+    $$o{page} = 0;
+    $$o{rows_page} = 0;
+    $$o{num_pages} = 0;
+    $$o{limit} = [0,0];
+  } elsif ($$o{rows_page} eq 'All' || ($$o{sth}->count() < $$o{rows_page})) {
+    $$o{rows_page} = "All";
+    $$o{page} = 1;
+    $$o{num_pages} = 1;
+    $$o{limit} = [1, $$o{sth}->count()];
+  } else {
+    $$o{num_pages} = POSIX::ceil($$o{sth}->count() / $$o{rows_page});
+    $$o{page} = $$o{num_pages} if $$o{page} > $$o{num_pages};
+    my $lo = ($$o{rows_page} * $$o{page}) - $$o{rows_page} + 1;
+    my $hi = $lo + $$o{rows_page} - 1;
+    $hi = $$o{sth}->count() if $hi > $$o{sth}->count();
+    $$o{limit} = [$lo, $hi];
+  }
+
+  # execute query
+  $$o{sth}->execute( limit => $$o{limit} );
+}
+
+#-------------- ACCESSORS --------------------------------------------------
+sub sth {
+  my ($o) = @_;
+  $o->sth_execute() if ! $$o{sth};
+  return $$o{sth};
+}
+sub get_count        { $_[0]->sth->count() }
+sub get_rows_page    { $_[0]{rows_page} }
+sub get_current_page { $_[0]{page}      }
+sub get_lo_rec       { $_[0]{limit}[0]  }
+sub get_hi_rec       { $_[0]{limit}[1]  }
+sub get_num_pages    { $_[0]{num_pages} }
+sub get_title        { $_[0]{schema}{title} }
+sub get_filter       { $_[0]{sth}->filter_descr() }
+sub get_sort         { $_[0]{sth}->sort_descr() }
+sub get_query        { $_[0]{query}     }
+sub get_nice_name    { $_[0]{schema}{select}{$_[1]}[2] }
+sub get_num_usersel_cols { scalar @{$_[0]{show}} }
+sub get_usersel_cols { $_[0]{show} }
 
 1;

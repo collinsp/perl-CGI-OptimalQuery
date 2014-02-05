@@ -82,7 +82,7 @@ form.OQform {
   display: none;
 }
 
-.OQAddColumnsPanel, .OQFilterPanel, .OQToolsPanel, .OQHelpPanel {
+.OQAddColumnsPanel, .OQFilterPanel, .OQHelpPanel {
   display: none;
   position: absolute;
   top: 80px;
@@ -120,43 +120,117 @@ form.OQform {
   right: 10px;
 }
 
-
 .OQToolsPanel {
-  left: auto;
-  top: 30px;
-  width: 18em;
-  background-color: #ddd;
-}
-.OQToolsPanel button {
-  font-size: 1.2em;
-}
-.OQDownloadCSV { 
-  margin-left: 1em;
-}
-.OQToolsPanel fieldset {
-  margin: .5em;
-  border: 1px solid #aaa;
-  overflow: hidden;
-}
-.OQToolsPanel legend {
-  font-weight: bold;
-  color: #444;
-}
-.OQSaveReportBut {
-  float: right;
-}
-.OQToolsCancelBut {
-  margin: 1em;
-}
-.OQLoadSavedSearch {
-  float: left;
-  clear: both;
-}
-.OQDeleteSavedSearchBut {
-  float: right;
+  margin: 12px;
+  margin-left: 26px;
   position: relative;
-  top: -10px;
 }
+.OQToolsPanel h2 {
+  margin: 0;
+  color: #444;
+  font-weight: bold;
+}
+.OQToolsPanel h4 {
+  text-align: center;
+  margin: 0;
+  text-decoration: underline;
+}
+
+.OQemailmergetool {
+  overflow: hidden;
+  border: 1px solid #666;
+  border-radius: 2px;
+}
+.OQemailmergeform, .OQemailmergetemplatevars {
+  float: left;
+  position: relative;
+  max-width: 35em;
+}
+
+.OQemailmergeform p {
+  margin: 10px;
+}
+
+.OQemailmergetemplatevars  {
+  padding: 6px;
+  border: 1px inset #666;
+  background-color: #eee;
+  margin-top: 4px;
+  margin-top: 4px;
+  border-radius: 2px;
+}
+ 
+.OQemailmergetemplatevars .OQTemplateVar {
+  cursor: pointer;
+  font-size: .9em;
+  padding: 6px;
+}
+
+.OQemailmergemsgs {
+  max-height: 30em;
+  overflow: auto;
+}
+
+.OQemailmergeview > * {
+  margin: 10px;
+}
+
+.oqemailmergepreviewbody {
+  white-space: pre;
+}
+
+
+.OQemailmergeform input {
+  width: 94%;
+}
+
+
+.OQemailmergetemplatevarlist {
+  position: relative;
+  max-height: 32em;
+  overflow: auto;
+  min-width: 16em;
+}
+
+.OQemailmergeform label {
+  font-weight: bold;
+  color: #222;
+  margin: 4px;
+}
+.OQemailmergeform small {
+  color: #555;
+  margin-left: 6px;
+}
+
+.OQemailmergeform textarea {
+  height: 4em;
+  width: 94%;
+}
+
+.OQToolContent {
+  margin-left: 16px;
+}
+.OQToolExpander.opened:before,
+.OQToolExpander:hover:before {
+  content: '\00BB';
+  position: absolute;
+  left: 4px;
+  top: 8px;
+}
+.OQToolExpander {
+  cursor: pointer;
+  padding: 10px;
+  padding-left: 16px;
+  margin: 0;
+  margin-top: 10px;
+  font-size: .9em;
+  color: #444;
+  position: relative;
+}
+.OQToolExpander:hover {
+  background-color: #ffd;
+}
+
 
 .OQAddColumnsPanel h1, .OQFilterPanel h1 {
   font-size: 1.4em;
@@ -232,13 +306,11 @@ form.OQform {
 
 .LoadingData .OQBlocker, 
 .OQFilterMode .OQBlocker,
-.OQToolsMode .OQBlocker,
 .OQAddColumnsMode .OQBlocker,
 .OQHelpMode .OQBlocker,
 .OQAddColumnsMode .OQAddColumnsPanel,
 .OQFilterMode .OQFilterPanel,
-.OQHelpMode .OQHelpPanel,
-.OQToolsMode .OQToolsPanel {
+.OQHelpMode .OQHelpPanel {
   display: block;
 }
 

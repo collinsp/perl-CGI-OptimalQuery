@@ -27,6 +27,7 @@ print CGI::header(),
   <li><a href=people.pl target=_blank>people</a>
   <li><a href=product.pl target=_blank>product</a>
   <li><a href=manufact.pl target=_blank>manufacturers</a>
+  <li><a href=emailmerge_example.pl target=_blank>email merge example</a>
 </ul>
 
 <h2>Saved Searches</h2>

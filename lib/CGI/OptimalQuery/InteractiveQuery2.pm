@@ -292,6 +292,18 @@ $newBut
   if ($dataonly) {
     $buf .= "</body></html>";
   } else {
+
+    # ouput tools panel
+    my @tools = sort keys %{$$o{schema}{tools}};
+    if ($#tools > -1) {
+      $buf .= "<div class=OQToolsPanel><h2>Tools</h2>";
+      foreach my $key (sort keys %{$$o{schema}{tools}}) {
+        my $tool = $$o{schema}{tools}{$key};
+        $buf .= "<h3 data-toolkey='$key' class=OQToolExpander>".escapeHTML($$tool{title})."</h3>";
+      }
+      $buf .= "</div>";
+    }
+
     $buf .= "<div class=OQdocBottom>$opts{OQdocBottom}</div>";
     #$buf .= "<a href=# style='color: #999; float: right;' onclick=\"document.cookie='OQIQ2=;path=/;expires=Thu, 01-Jan-1970 00:00:01 GMT';window.location.reload(true);return false;\">classic mode</a>" if $ENV{HTTP_COOKIE} =~ /\bOQIQ2\=1\b/;
     $buf .= $opts{htmlFooter};

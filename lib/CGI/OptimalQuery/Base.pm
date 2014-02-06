@@ -49,7 +49,7 @@ my %TOOLS = (
     handler => sub {
       my ($o) = @_;
       my $ar = $$o{dbh}->selectall_arrayref("
-        SELECT id, user_title
+        SELECT id, uri, user_title
         FROM oq_saved_search
         WHERE user_id = ?
         AND upper(uri) = upper(?)
@@ -58,7 +58,8 @@ my %TOOLS = (
           $$o{schema}{URI}, $$o{schema}{title});
       my $buf;
       foreach my $x (@$ar) {
-        $buf .= "<tr><td><a href=# class=OQLoadSavedSearch data-id=$$x[0]>".escapeHTML($$x[1])."</a></td><td><button type=button class=OQDeleteSavedSearchBut>x</button></td></tr>";
+        my ($id, $uri, $user_title) = @$x;
+        $buf .= "<tr><td><a href=$uri?OQLoadSavedSearch=$id>".escapeHTML($user_title)."</a></td><td><button type=button class=OQDeleteSavedSearchBut data-id=$id>x</button></td></tr>";
       }
       if (! $buf) {
         $buf = "<em>none</em>";

@@ -147,8 +147,6 @@ form.OQform {
 
 .OQemailmergetool {
   overflow: hidden;
-  border: 1px solid #666;
-  border-radius: 2px;
 }
 .OQemailmergeform, .OQemailmergetemplatevars {
   float: left;

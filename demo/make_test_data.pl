@@ -113,6 +113,23 @@ CREATE TABLE oq_saved_search (
   params TEXT,
   CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
 )");
+
+$dbh->do("
+CREATE TABLE oq_autoaction (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  uri TEXT NOT NULL,
+  oq_title TEXT NOT NULL,
+  user_title TEXT NOT NULL,
+  params TEXT,
+  start_dt DATETIME NOT NULL,
+  end_dt   DATETIME,
+  repeat_interval_min INTEGER UNSIGNED NOT NULL DEFAULT 1440,
+  last_run_dt DATETIME NOT NULL,
+  trigger_mask INTEGER UNSIGNED NOT NULL,
+  error_txt TEXT
+)");
+
+
 $dbh->do("CREATE INDEX idx_manufact_name ON manufact (name)");
 $dbh->do("CREATE INDEX idx_product_name ON product (name)");
 $dbh->do("CREATE INDEX idx_product_prodno ON product (prodno)");

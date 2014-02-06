@@ -136,6 +136,15 @@ form.OQform {
   text-decoration: underline;
 }
 
+.OQautoactionform a {
+  display: block;
+  padding: 6px;
+  text-decoration: none;
+}
+.OQautoactionform a:hover {
+  background-color: #ffd;
+}
+
 .OQemailmergetool {
   overflow: hidden;
   border: 1px solid #666;
@@ -180,10 +189,31 @@ form.OQform {
 }
 
 
-.OQemailmergeform input {
+.OQemailmergeform p > input {
   width: 94%;
 }
 
+.OQnotify {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 300px;
+  height: 100px;
+  padding: 20px;
+  background-color: #222;
+  color: white;
+}
+
+.OQnotifyOkBut {
+  position: absolute;
+  bottom: 10px;
+  left: 45%;
+}
+
+.OQmsg {
+  height: 60px;
+  overflow: auto;
+}
 
 .OQemailmergetemplatevarlist {
   position: relative;
@@ -192,7 +222,7 @@ form.OQform {
   min-width: 16em;
 }
 
-.OQemailmergeform label {
+.OQemailmergeform p > label {
   font-weight: bold;
   color: #222;
   margin: 4px;

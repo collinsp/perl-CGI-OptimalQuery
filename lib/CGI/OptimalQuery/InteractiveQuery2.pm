@@ -297,9 +297,17 @@ $newBut
     my @tools = sort keys %{$$o{schema}{tools}};
     if ($#tools > -1) {
       $buf .= "<div class=OQToolsPanel><h2>Tools</h2>";
+      my $opened_tool_key = $$o{q}->param('tool');
       foreach my $key (sort keys %{$$o{schema}{tools}}) {
         my $tool = $$o{schema}{tools}{$key};
-        $buf .= "<h3 data-toolkey='$key' class=OQToolExpander>".escapeHTML($$tool{title})."</h3>";
+
+        my $openedClass = '';
+        my $toolContent = '';
+        if ($opened_tool_key eq $key) {
+          $openedClass = ' opened';
+          $toolContent = "<div class=OQToolContent>".$$tool{handler}->($o)."</div>";
+        }
+        $buf .= "<h3 data-toolkey='$key' class='OQToolExpander $openedClass'>".escapeHTML($$tool{title})."</h3>$toolContent";
       }
       $buf .= "</div>";
     }

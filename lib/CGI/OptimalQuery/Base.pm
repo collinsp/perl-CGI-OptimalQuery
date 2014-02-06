@@ -8,6 +8,7 @@ use Carp('confess');
 use POSIX();
 use DBIx::OptimalQuery;
 use Data::Dumper;
+use JSON::XS;
 
 sub escapeHTML {
   return defined $_[0] ? CGI::escapeHTML($_[0]) : '';
@@ -234,6 +235,21 @@ sub new {
         $$o{dbh}->do("INSERT INTO oq_saved_search (id,user_id,uri,oq_title,user_title,params) VALUES (s_oq_saved_search.nextval,?,?,?,?,?)", undef, $$o{schema}{savedSearchUserID}, $$o{schema}{URI}, $$o{schema}{title}, $$o{q}->param('OQsaveSearchTitle'), $params);
       } else {
         $$o{dbh}->do("INSERT INTO oq_saved_search (user_id,uri,oq_title,user_title,params) VALUES (?,?,?,?,?)", undef, $$o{schema}{savedSearchUserID}, $$o{schema}{URI}, $$o{schema}{title}, $$o{q}->param('OQsaveSearchTitle'), $params);
+      }
+    }
+  }
+
+  elsif ($$o{q}->param('OQLoadAutoAction') =~ /^(\d+)$/) {
+    my $id = $1;
+    my ($params) = $$o{dbh}->selectrow_array("SELECT params FROM oq_autoaction WHERE id=?", undef, $id);
+    if ($params) {
+      $params = decode_json($params); 
+      if (ref($params) eq 'HASH') {
+        delete $$params{module};
+        while (my ($k,$v) = each %$params) { 
+          $$o{q}->param( -name => $k, -value => $v ); 
+        }
+        $$o{q}->param(-name => 'oq_autoaction_id', -value => $1);
       }
     }
   }

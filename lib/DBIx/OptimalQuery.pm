@@ -124,6 +124,13 @@ WHERE tablernk2.RANK >= ? ";
     push @{$$c{binds}}, ( $hi_limit, $lo_limit );
   }
 
+  elsif ($$sth{oq}{dbh}{Driver}{Name} eq 'Pg') {
+    my $a = $lo_limit - 1;
+    my $b = $hi_limit - $lo_limit + 1;
+    $c->{sql} .= "\nLIMIT ? OFFSET ?";
+    push @{$$c{binds}}, ($b, $a);
+  }
+
   else {
     my $a = $lo_limit - 1;
     my $b = $hi_limit - $lo_limit + 1;

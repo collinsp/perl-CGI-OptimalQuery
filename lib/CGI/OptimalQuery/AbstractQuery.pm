@@ -8,7 +8,6 @@ use base 'CGI::OptimalQuery::Base';
 sub new {
   my $pack = shift;
   my $o = $pack->SUPER::new(@_);
-  $o->sth_execute();
 
   # load HTML form params or use values in schema
   for (qw( show filter sort page rows_page module queryDescr hiddenFilter )) {
@@ -85,7 +84,6 @@ sub new {
   # execute query
   $$o{sth}->execute( limit => $$o{limit} );
 
->>>>>>> master
   return $o;
 }
 

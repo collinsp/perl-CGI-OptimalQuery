@@ -235,6 +235,7 @@ $newBut
       $buf .= $opts{OQdataRCol}->($r);
     } elsif ($o->{q}->param('on_select') ne '') {
       my $on_select = $o->{q}->param('on_select');
+      $on_select =~ s/\~.*//;
       my ($func,@argfields) = split /\,/, $on_select;
       $argfields[0] = 'U_ID' if $#argfields==-1;
       my @argvals = map {

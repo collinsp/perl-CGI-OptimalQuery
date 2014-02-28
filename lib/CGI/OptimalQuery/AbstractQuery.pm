@@ -33,6 +33,7 @@ sub new {
 
   # if any fields are passed into on_select, ensure they are always selected
   my $on_select = $$o{q}->param('on_select');
+  $on_select =~ s/\~.*//; # remove options if exists
   if ($on_select =~ /[^\,]+\,(.+)/) {
     my @fields = split /\,/, $1;
     for (@fields) {

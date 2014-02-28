@@ -253,7 +253,8 @@ sub create_select {
     # if type is date then use specified date format
     if (! $$select[3]{select_sql} && $$select[3]{date_format}) {
       my @tmp = @{ $select->[1] }; $select_sql = \ @tmp; # need a real copy cause we are going to mutate it
-      if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle') {
+      if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle' ||
+          $$sth{oq}{dbh}{Driver}{Name} eq 'Pg') {
         $$select_sql[0] = "to_char(".$$select_sql[0].",'".$$select[3]{date_format}."')";
       } elsif ($$sth{oq}{dbh}{Driver}{Name} eq 'mysql') {
         $$select_sql[0] = "date_format(".$$select_sql[0].",'".$$select[3]{date_format}."')";

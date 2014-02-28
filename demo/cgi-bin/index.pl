@@ -27,6 +27,8 @@ print CGI::header(),
   <li><a href=people.pl target=_blank>people</a>
   <li><a href=product.pl target=_blank>product</a>
   <li><a href=manufact.pl target=_blank>manufacturers</a>
+  <li><a href=on_select.pl target=_blank>on_select demo</a>
+  <li><a href=on_selectmultiple.pl target=_blank>on_selectmultiple demo</a>
 </ul>
 
 <h2>Saved Searches</h2>

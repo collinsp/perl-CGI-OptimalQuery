@@ -29,6 +29,8 @@ print CGI::header(),
   <li><a href=manufact.pl target=_blank>manufacturers</a>
   <li><a href=emailmerge_example.pl target=_blank>email merge example</a>
   <li><a href=autoactions_example.pl target=_blank>auto actions</a>
+  <li><a href=on_select.pl target=_blank>on_select demo</a>
+  <li><a href=on_selectmultiple.pl target=_blank>on_selectmultiple demo</a>
 </ul>
 
 <h2>Saved Searches</h2>

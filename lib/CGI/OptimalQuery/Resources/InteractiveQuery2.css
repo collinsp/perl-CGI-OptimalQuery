@@ -121,9 +121,13 @@ form.OQform {
 }
 
 .OQToolsPanel {
-  margin: 12px;
-  margin-left: 26px;
+  display: none;
   position: relative;
+  border: 2px solid #ccc;
+  padding: 20px;
+  background-color: #eee;
+  max-width: 940px;
+  margin: 20px auto;
 }
 .OQToolsPanel h2 {
   margin: 0;
@@ -160,8 +164,8 @@ form.OQform {
 
 .OQemailmergetemplatevars  {
   padding: 6px;
-  border: 1px inset #666;
-  background-color: #eee;
+  border: 1px solid #aaa;
+  background-color: #fff;
   margin-top: 4px;
   margin-top: 4px;
   border-radius: 2px;
@@ -238,6 +242,8 @@ form.OQform {
 .OQToolContent {
   margin-left: 16px;
 }
+
+/*
 .OQToolExpander.opened:before,
 .OQToolExpander:hover:before {
   content: '\00BB';
@@ -257,6 +263,22 @@ form.OQform {
 }
 .OQToolExpander:hover {
   background-color: #ffd;
+}
+*/
+
+.OQToolExpander {
+  cursor: pointer;
+  font-size: .9em;
+  color: #444;
+  position: relative;
+  margin: 0;
+  padding: 10px;
+}
+.OQToolExpander:hover {
+  background-color: #ffd;
+}
+.OQToolExpander h3 {
+  margin: 0;
 }
 
 
@@ -495,6 +517,9 @@ a.OQeditBut {
 }
 .OQStatsBut {
   background-image: url(view-statistics.png);
+}
+.OQToolsCancelBut {
+  position:absolute;right:5px;top:5px;font-size:20px;font-weight:bold;color:#858585;cursor:pointer;height:26px;width:30px;background-color:transparent;font-family:serif;border:0;
 }
 
 .OQdialogs {

@@ -53,7 +53,7 @@ form.OQform {
 .OQFilterDescr:hover td {
   background-color: #ffd;
 }
-.OQinfo td.label {
+.OQinfo td.OQlabel {
   width: 3em;
   text-align: center;
   padding-left: 0;

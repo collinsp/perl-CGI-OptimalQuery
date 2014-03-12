@@ -146,18 +146,18 @@ $newBut
 </div>
 
 <table class=OQinfo>";
-  $buf .= "<tr class=OQQueryDescr><td class=label>Query:</td><td>".escapeHTML($$o{queryDescr})."</td></tr>" if $$o{queryDescr};
+  $buf .= "<tr class=OQQueryDescr><td class=OQlabel>Query:</td><td>".escapeHTML($$o{queryDescr})."</td></tr>" if $$o{queryDescr};
 
   my $filter = $o->get_filter();
   if ($filter) {
     $buf .= "<tr class=OQFilterDescr title='click to edit filter'";
     $buf .= " data-nofilter" if $opts{disable_filter};
-    $buf .= "><td class=label>Filter:</td><td>".escapeHTML($filter)."</td></tr>";
+    $buf .= "><td class=OQlabel>Filter:</td><td>".escapeHTML($filter)."</td></tr>";
   }
 
   my @sort = $o->{sth}->sort_descr;
   if ($#sort > -1) {
-    $buf .= "<tr class=OQSortDescr><td class=label>Sort:</td><td>";
+    $buf .= "<tr class=OQSortDescr><td class=OQlabel>Sort:</td><td>";
     my $comma = '';
     foreach my $c (@sort) {
       $buf .= $comma;

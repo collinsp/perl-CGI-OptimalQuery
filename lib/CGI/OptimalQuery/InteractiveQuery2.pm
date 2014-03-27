@@ -77,7 +77,7 @@ sub output {
 <html>
 <head>
 <title>".escapeHTML($o->get_title)."</title>
-<link id=OQIQ2CSS rel=stylesheet type=text/css href='$$o{schema}{resourceURI}/InteractiveQuery2.css'>
+<link id=OQIQ2CSS rel=stylesheet type=text/css href='$$o{schema}{resourceURI}/InteractiveQuery2.css?1'>
 <meta name=viewport content='width=device-width, initial-scale=1.0, user-scalable=no'>  
 ".$opts{htmlExtraHead}."</head>
 <body id=OQbody>";
@@ -88,7 +88,7 @@ sub output {
     a.setAttribute('rel','stylesheet');
     a.setAttribute('type','text/css');
     a.setAttribute('id','OQIQ2CSS');
-    a.setAttribute('href','$$o{schema}{resourceURI}/InteractiveQuery2.css');
+    a.setAttribute('href','$$o{schema}{resourceURI}/InteractiveQuery2.css?1');
     document.getElementsByTagName('head')[0].appendChild(a);
   }\n";
     }
@@ -105,9 +105,9 @@ sub output {
     }
 
     $buf = $opts{httpHeader}.$opts{htmlHeader};
-    $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
+    $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?1></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
     $buf .= "
-<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js></script><noscript>Javascript is required when viewing this page.</noscript>
+<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?1></script><noscript>Javascript is required when viewing this page.</noscript>
 <script>
 (function(){
 $script

@@ -62,6 +62,7 @@ sub output {
     }
   }
 
+  my $ver = "ver=$CGI::OptimalQuery::VERSION";
   my $buf;
   my $dataonly = $$o{q}->param('dataonly');
   if ($dataonly) {
@@ -77,7 +78,7 @@ sub output {
 <html>
 <head>
 <title>".escapeHTML($o->get_title)."</title>
-<link id=OQIQ2CSS rel=stylesheet type=text/css href='$$o{schema}{resourceURI}/InteractiveQuery2.css?1'>
+<link id=OQIQ2CSS rel=stylesheet type=text/css href='$$o{schema}{resourceURI}/InteractiveQuery2.css?$ver'>
 <meta name=viewport content='width=device-width, initial-scale=1.0, user-scalable=no'>  
 ".$opts{htmlExtraHead}."</head>
 <body id=OQbody>";
@@ -105,9 +106,9 @@ sub output {
     }
 
     $buf = $opts{httpHeader}.$opts{htmlHeader};
-    $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?1></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
+    $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
     $buf .= "
-<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?1></script><noscript>Javascript is required when viewing this page.</noscript>
+<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>
 <script>
 (function(){
 $script

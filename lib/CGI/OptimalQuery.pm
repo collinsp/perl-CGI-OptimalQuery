@@ -57,7 +57,7 @@ sub new {
   $$schema{error_handler}  ||= sub { print STDERR @_; 0; };
 
   # find module & class
-  my $module = $$schema{q}->param('module') || $default_module;
+  my $module = $$schema{q}->param('module') || $$schema{module} || $default_module;
   my $class = $$schema{modules}{$module} || $modules{$module};
 
   # dynamically load class

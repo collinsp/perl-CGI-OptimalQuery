@@ -149,7 +149,7 @@ sub output {
     }
 
     else {
-      "invalid typenum: $typenum; this should never happen";
+      die "invalid typenum: $typenum; this should never happen";
     }
 
 

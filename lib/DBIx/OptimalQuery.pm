@@ -74,7 +74,7 @@ sub execute {
 
   # if clobs have been selected, find & set LongReadLen
   local $sth->{oq}->{dbh}->{'LongReadLen'};
-  if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle' &&
+  if ($$sth{oq}{dbtype} eq 'Oracle' &&
       $$sth{'oq'}{'AutoSetLongReadLen'} &&
       scalar(@{$$c{'selected_lobs'}})) {
     my ($SetLongReadLen) = $$sth{oq}{dbh}->selectrow_array("
@@ -100,7 +100,6 @@ sub execute {
   }
 }
 
-
 # function to add limit sql
 # $sth->add_limit_sql($lo_limit,$hi_limit);
 sub add_limit_sql {
@@ -110,7 +109,7 @@ sub add_limit_sql {
   my $hi_limit = shift or die "missing hi_limit";
   my $c = $sth->{cursors}->[0];
 
-  if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle') {
+  if ($$sth{oq}{dbtype} eq 'Oracle') {
     $c->{sql} = "
 SELECT * 
 FROM (
@@ -124,7 +123,40 @@ WHERE tablernk2.RANK >= ? ";
     push @{$$c{binds}}, ( $hi_limit, $lo_limit );
   }
 
-  elsif ($$sth{oq}{dbh}{Driver}{Name} eq 'Pg') {
+  # sqlserver doesn't support limit/offset until Sql Server 2012 (which I don't have to test)
+  # the workaround is this ugly hack...
+  elsif ($$sth{oq}{dbtype} eq 'Microsoft SQL Server') {
+    die "missing required U_ID in select" unless exists $$sth{oq}{select}{U_ID};
+
+    my $sql = $c->{sql};
+
+    # extract order by sql, and binds in order by from sql
+    my $orderbysql;
+    if ($sql =~ s/\ (ORDER BY\ .*?)$//) {
+      $orderbysql = $1;
+      my $copy = $orderbysql;
+      my $bindCount = $copy =~ tr/,//;
+      if ($bindCount > 0) {
+        my @newBinds;
+        push @newBinds, pop @{$$c{binds}} for 1 .. $bindCount;
+        @{$$c{binds}} = (reverse @newBinds, @{$$c{binds}});
+      }
+      $orderbysql .= ", ".$$sth{oq}{select}{U_ID}[1][0];
+    } elsif (exists $$sth{oq}{select}{U_ID}) {
+      $orderbysql = " ORDER BY ".$$sth{oq}{select}{U_ID}[1][0];
+    }
+
+    # remove first select keyword, and add new one with windowing
+    if ($sql =~ s/^(\s*SELECT\s*)//) {
+      my $limit = int($hi_limit - $lo_limit + 1);
+      my $lo_limit = int($lo_limit);
+
+      # sqlserver doesn't allow placeholders for limit and offset here
+      $c->{sql} = "SELECT TOP $limit * FROM (SELECT ROW_NUMBER() OVER ($orderbysql) AS RANK, $sql) tablerank1 WHERE tablerank1.RANK >= $lo_limit";
+    }
+  }
+
+  elsif ($$sth{oq}{dbtype} eq 'Pg') {
     my $a = $lo_limit - 1;
     my $b = $hi_limit - $lo_limit + 1;
     $c->{sql} .= "\nLIMIT ? OFFSET ?";
@@ -260,10 +292,10 @@ sub create_select {
     # if type is date then use specified date format
     if (! $$select[3]{select_sql} && $$select[3]{date_format}) {
       my @tmp = @{ $select->[1] }; $select_sql = \ @tmp; # need a real copy cause we are going to mutate it
-      if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle' ||
-          $$sth{oq}{dbh}{Driver}{Name} eq 'Pg') {
+      if ($$sth{oq}{dbtype} eq 'Oracle' ||
+          $$sth{oq}{dbtype} eq 'Pg') {
         $$select_sql[0] = "to_char(".$$select_sql[0].",'".$$select[3]{date_format}."')";
-      } elsif ($$sth{oq}{dbh}{Driver}{Name} eq 'mysql') {
+      } elsif ($$sth{oq}{dbtype} eq 'mysql') {
         $$select_sql[0] = "date_format(".$$select_sql[0].",'".$$select[3]{date_format}."')";
       } else {
         die "unsupported DB";
@@ -276,7 +308,7 @@ sub create_select {
     }
 
     # remember if a lob is selected
-    if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle' &&
+    if ($$sth{oq}{dbtype} eq 'Oracle' &&
         $sth->{oq}->get_col_types('select')->{$show} eq 'clob') {
       push @{ $cursor->{selected_lobs} }, $show;
       #$select_sql->[0] = 'to_char('.$select_sql->[0].')';
@@ -452,9 +484,9 @@ sub create_where {
       # convert rval to a string using date_format
       if (exists $$oq{select}{$token[0]{colAlias}}[3]{date_format} &&     
           $token[1]{sql} =~ /like/i && $token[2]{sql} eq '?') {
-        if ($$oq{dbh}{Driver}{Name} eq 'Oracle') {
+        if ($$oq{dbtype} eq 'Oracle') {
           $token[0]{sql} = "to_char(".$token[0]{sql}.",'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
-        } elsif ($$oq{dbh}{Driver}{Name} eq 'mysql') {
+        } elsif ($$oq{dbtype} eq 'mysql') {
           $token[0]{sql} = "date_format(".$token[0]{sql}.",'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
         }  
       }
@@ -464,9 +496,9 @@ sub create_where {
       # convert rval to a date using date_format
       elsif (exists $$oq{select}{$token[0]{colAlias}}[3]{date_format} &&     
           $token[1]{sql} !~ /like/i && $token[2]{sql} eq '?') {
-        if ($$oq{dbh}{Driver}{Name} eq 'Oracle') {
+        if ($$oq{dbtype} eq 'Oracle') {
           $token[2]{sql} = "to_date(?,'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
-        } elsif ($$oq{dbh}{Driver}{Name} eq 'mysql') {
+        } elsif ($$oq{dbtype} eq 'mysql') {
           $token[2]{sql} = "str_to_date(?,'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
         }  
       }
@@ -681,7 +713,7 @@ sub create_order_by {
         die "could not find nice name" if $$oq{select}{$colAlias}[2] eq '';
         my $nice = '['.$$oq{select}{$colAlias}[2].']';
 
-        if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle' &&
+        if ($$sth{oq}{dbtype} eq 'Oracle' &&
             $sth->{oq}->get_col_types('select')->{$colAlias} eq 'clob' &&
             $sql !~ /^cast\(/i) {
           $sql = "cast($sql as varchar2(100))";
@@ -834,7 +866,7 @@ WHERE $where_sql ";
 
     # if clobs have been selected, find & set LongReadLen
     local $sth->{oq}->{dbh}->{'LongReadLen'};
-    if ($$sth{oq}{dbh}{Driver}{Name} eq 'Oracle' &&
+    if ($$sth{oq}{dbtype} eq 'Oracle' &&
         $$sth{'oq'}{'AutoSetLongReadLen'} &&
         scalar(@{$$c{'selected_lobs'}})) {
       my ($SetLongReadLen) = $$sth{oq}{dbh}->selectrow_array("
@@ -1109,6 +1141,8 @@ sub new {
 
   $oq->_normalize();
 
+  $$oq{dbtype} = $$oq{dbh}{Driver}{Name};
+  $$oq{dbtype} = $$oq{dbh}->get_info(17) if $$oq{dbtype} eq 'ODBC';
 
   return $oq;
 }
@@ -1458,6 +1492,7 @@ sub type_map {
   1 => 'char',
   3 => 'num',    # is decimal type
   4 => 'num',
+  6 => 'num',    # float
   7  => 'num',
   8 => 'num',
   9 => 'date',
@@ -1533,7 +1568,9 @@ sub get_col_types {
         # don't bother though if there is binds
         # this isn't neccessary for mysql since an explicit limit is
         # defined latter
-        push @where, "to_char($sql) = NULL" if $#binds == -1;
+        if ($$oq{dbtype} eq 'Oracle' && $#binds == -1) {
+          push @where, "to_char($sql) = NULL";
+        }
       }
     }
   }
@@ -1583,12 +1620,13 @@ sub get_col_types {
 SELECT ".join(',', @select)."
 FROM $fromSql";
 
-    if ($$oq{dbh}{Driver}{Name} eq 'Oracle') {
+    if ($$oq{dbtype} eq 'Oracle' || $$oq{dbtype} eq 'Microsoft SQL Server') {
       $sql .= "
 WHERE 1=2
 $where ";
     } 
-    elsif ($$oq{dbh}{Driver}{Name} eq 'mysql') {
+
+    elsif ($$oq{dbtype} eq 'mysql') {
       $sql .= "
 LIMIT 0 ";
     }

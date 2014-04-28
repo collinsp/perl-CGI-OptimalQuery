@@ -1,8 +1,12 @@
 cgi-optimalquery-screenshot.png
 Changes
+demo/cgi-bin/autoactions_example.pl
+demo/cgi-bin/emailmerge_example.pl
 demo/cgi-bin/index.pl
 demo/cgi-bin/inventory.pl
 demo/cgi-bin/manufact.pl
+demo/cgi-bin/on_select.pl
+demo/cgi-bin/on_selectmultiple.pl
 demo/cgi-bin/people.pl
 demo/cgi-bin/product.pl
 demo/cgi-bin/record.pl
@@ -10,8 +14,11 @@ demo/make_test_data.pl
 demo/README
 lib/CGI/OptimalQuery.pm
 lib/CGI/OptimalQuery/AbstractQuery.pm
+lib/CGI/OptimalQuery/AutoActionTool.pm
 lib/CGI/OptimalQuery/Base.pm
 lib/CGI/OptimalQuery/CSV.pm
+lib/CGI/OptimalQuery/EmailMergeTool.pm
+lib/CGI/OptimalQuery/FilterParser.pm
 lib/CGI/OptimalQuery/InteractiveFilter.pm
 lib/CGI/OptimalQuery/InteractiveFilter2.pm
 lib/CGI/OptimalQuery/InteractiveQuery.pm
@@ -56,8 +63,12 @@ lib/CGI/OptimalQuery/ShowColumns.pm
 lib/CGI/OptimalQuery/XML.pm
 lib/DBIx/OptimalQuery.pm
 LICENSE
+Makefile
 Makefile.PL
-MANIFEST
+MANIFEST			This list of files
+MANIFEST.SKIP
+pm_to_blib
 README
 t/001_load.t
+t/002_postgrestest.t
 Todo

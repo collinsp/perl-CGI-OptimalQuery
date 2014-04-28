@@ -87,9 +87,11 @@ sub execute {
   }
 
   eval {
+    $$sth{oq}{error_handler}->("DEBUG SQL:\n".$c->{sql}."\n\nBINDS:\n".join(',', @{ $c->{binds} })."\n\n") if $$sth{oq}{debug};
+    local $sth->{oq}->{dbh}->{FetchHashKeyName} = 'NAME_uc';
     $c->{sth} = $sth->{oq}->{dbh}->prepare($c->{sql});
     $c->{sth}->execute( @{ $c->{binds} } );
-    my @fieldnames = @{ $c->{sth}->{ $sth->{oq}->{dbh}->{FetchHashKeyName} || 'NAME' } };
+    my @fieldnames = @{ $c->{sth}->{ $sth->{oq}->{dbh}->{FetchHashKeyName} || 'NAME_uc' } };
     my %rec;
     my @bindcols = \( @rec{ @fieldnames } );
     $c->{sth}->bind_columns(@bindcols);
@@ -879,6 +881,7 @@ WHERE $where_sql ";
     }
 
 
+    local $sth->{oq}->{dbh}->{FetchHashKeyName} = 'NAME_uc';
     $c->{sth} = $sth->{oq}->{dbh}->prepare($c->{sql});
   }
   $$sth{oq}{error_handler}->("DEBUG: cursors-\n".Dumper($sth->{cursors})."\n") if $$sth{oq}{debug};
@@ -919,7 +922,7 @@ sub fetchrow_hashref  {
         map { $$rec{$_} } @{ $c->{parent_keys} } );
 
       # for some reason when I call fetchrowhashref perl crashes hard
-      my $cols = $c->{sth}->{NAME};
+      my $cols = $c->{sth}->{NAME_uc};
       @$rec{ @$cols } = [];
       while (my @vals = $c->{sth}->fetchrow_array()) {
         for (my $i=0; $i <= $#$cols; $i++) {
@@ -1635,6 +1638,7 @@ LIMIT 0 ";
     eval {
       local $oq->{dbh}->{PrintError} = 0;
       local $oq->{dbh}->{RaiseError} = 1;
+      local $oq->{dbh}->{FetchHashKeyName} = 'NAME_uc';
       $sth = $oq->{dbh}->prepare($sql);
       $sth->execute(@binds);
     }; if ($@) {

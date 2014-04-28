@@ -47,6 +47,9 @@ DESCRIPTION
     SQL together to form an optimized SQL query, and outputing the results
     in a format the user chooses.
 
+    This module has been tested for SQLite, mysql, postgres, Microsoft SQL
+    Server, and Oracle.
+
     The important elements the developer describes are what fields (select
     elements) the user can see and what data sets (join elements) those
     fields come from. Each select and join element can depend upon joins.

@@ -65,6 +65,7 @@ my $o = CGI::OptimalQuery->new({
     'DIRECTOR_BITHDATE' => ['director', 'director.birthdate', 'Director Birthdate'],
     'RELEASE_YEAR' => ['movie', 'movie.releaseyear', 'Release Year']
   },
+  module => 'CSV',
   'joins' => {
     'movie' => [undef, 'movie'],
     'director' => ['movie', 'LEFT JOIN person director ON (movie.director_person_id = director.person_id)'],

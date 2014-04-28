@@ -1,0 +1,6 @@
+^demo\/db
+\.bak$
+\.old$
+^blib
+^\.git
+\.tar\.gz$

@@ -29,8 +29,11 @@ exit
 
 # t/002_postgrestest.t - check module loading and create testing directory
 use File::Temp();
+use CGI::OptimalQuery();
 use DBI();
+
 use Test::More tests => 5;
+my $TOTAL_TESTS = 5;
 
 use warnings;
 no warnings qw( uninitialized );
@@ -42,7 +45,7 @@ my $dbh;
 sub dropall {
   local $$dbh{RaiseError} = 0;
   local $$dbh{PrintError} = 0;
-  $dbh->do("DROP TABLE IF EXISTS ".$prefix.$_) for (qw( person movie moviecast ));
+  $dbh->do("DROP TABLE ".$prefix.$_) for (qw( person movie moviecast ));
 }
 
 END {
@@ -52,9 +55,7 @@ END {
   }
 }
 SKIP: {
-  skip "ENV: PG_DSN,PG_USER,PG_PASS not configured", 5 unless $ENV{PG_DSN};
-
-  use_ok('CGI::OptimalQuery');
+  skip "ENV: PG_DSN,PG_USER,PG_PASS not configured", $TOTAL_TESTS unless $ENV{PG_DSN};
 
   $dbh = DBI->connect($ENV{PG_DSN}, $ENV{PG_USER}, $ENV{PG_PASS}, { RaiseError => 1, PrintError => 1 });
   pass("connect") if $dbh; 
@@ -94,24 +95,27 @@ SKIP: {
     'dbh' => $dbh,
     'select' => {
       'ID' => ['movie','movie.movie_id','Movie ID'],
-      'NAME' => ['movie','movie.name','Movie Name'],
+      'name' => ['movie','movie.name','Movie Name'],
       'DIRECTOR' => ['director', 'director.name', "Director's Name"],
-      'CAST' => ['moviecastperson', 'moviecastperson.name', 'All Cast (seprated by commas)'],
+      'cast' => ['moviecastperson', 'moviecastperson.name', 'All Cast (seprated by commas)'],
       'DIRECTOR_BITHDATE' => ['director', 'director.birthdate', 'Director Birthdate'],
       'RELEASE_YEAR' => ['movie', 'movie.releaseyear', 'Release Year']
     },
+    'filter' => "[cast] contains 'hamill'",
     'output_handler' => sub { $buf .= $_[0] },
     'module' => 'CSV',
     'joins' => {
       'movie' => [undef, $prefix.'movie AS movie'],
       'director' => ['movie', 'LEFT JOIN '.$prefix.'person AS director ON (movie.director_person_id = director.person_id)'],
       'moviecast' => ['movie', 'JOIN '.$prefix.'moviecast AS moviecast ON (movie.movie_id = moviecast.movie_id)', undef, { new_cursor => 1 }],
-      'moviecastperson' => ['moviecast', 'JOIN '.$prefix.'person AS moviecastperson ON (moviecast.person_id= moviecastperson.person_id)']
+      'moviecastperson' => ['moviecast', 'JOIN '.$prefix.'person AS moviecastperson ON (moviecast.person_id=moviecastperson.person_id)']
     }
   });
   pass("create object");
+
   $o->output();
 
-  pass("able to output") if $buf =~ /Harrison Ford\, Mark Hamill/s;
+  ok($buf =~ /Return\ of\ the\ Jedi/s, 'lowercase select alias');
+  ok($buf =~ /Harrison Ford\, Mark Hamill/s, 'multival field');
 }
 

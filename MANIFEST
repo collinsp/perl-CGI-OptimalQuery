@@ -70,5 +70,10 @@ MANIFEST.SKIP
 pm_to_blib
 README
 t/001_load.t
+t/002_postgres.t
 t/002_postgrestest.t
+t/003_sqlite.t
+t/004_mysql.t
+t/005_oracle.t
+t/006_sqlserver.t
 Todo

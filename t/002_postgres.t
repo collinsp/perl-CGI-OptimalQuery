@@ -28,6 +28,7 @@ exit
 =cut
 
 # t/002_postgrestest.t - check module loading and create testing directory
+use strict;
 use File::Temp();
 use CGI::OptimalQuery();
 use DBI();
@@ -88,9 +89,9 @@ SKIP: {
   $dbh->do("INSERT INTO ".$prefix."moviecast VALUES (?,?)", undef, @$_) for @cast;
   pass("create testdb");
 
-  # create a test optimal query
   my $buf;
-  my $o = CGI::OptimalQuery->new({
+
+  my $get_schema = sub {{
     'URI' => '/Movies',
     'dbh' => $dbh,
     'select' => {
@@ -101,7 +102,6 @@ SKIP: {
       'DIRECTOR_BITHDATE' => ['director', 'director.birthdate', 'Director Birthdate'],
       'RELEASE_YEAR' => ['movie', 'movie.releaseyear', 'Release Year']
     },
-    'filter' => "[cast] contains 'hamill'",
     'output_handler' => sub { $buf .= $_[0] },
     'module' => 'CSV',
     'joins' => {
@@ -110,12 +110,34 @@ SKIP: {
       'moviecast' => ['movie', 'JOIN '.$prefix.'moviecast AS moviecast ON (movie.movie_id = moviecast.movie_id)', undef, { new_cursor => 1 }],
       'moviecastperson' => ['moviecast', 'JOIN '.$prefix.'person AS moviecastperson ON (moviecast.person_id=moviecastperson.person_id)']
     }
-  });
-  pass("create object");
+  }};
 
-  $o->output();
 
-  ok($buf =~ /Return\ of\ the\ Jedi/s, 'lowercase select alias');
-  ok($buf =~ /Harrison Ford\, Mark Hamill/s, 'multival field');
+  # create a test optimal query
+  { $buf = '';
+    my $s = $get_schema->();
+    my $o = CGI::OptimalQuery->new($s);
+    $o->output();
+    ok($buf =~ /Return\ of\ the\ Jedi/s, 'lowercase select alias');
+  }
+
+  { $buf = '';
+    my $s = $get_schema->();
+    $$s{filter} = "[cast] contains 'hamill'";
+    my $o = CGI::OptimalQuery->new($s);
+    $o->output();
+    ok($buf =~ /Harrison Ford\, Mark Hamill/s, 'multival field');
+  }
+
+  # test filter multival using new cursor dep wth inline view in joins that has a join
+  # this test was used to fix a bug where OQ was not extracting the corelated join properly
+  { $buf = '';
+    my $s = $get_schema->();
+    $$s{joins}{moviecast}[1] = "LEFT JOIN (SELECT q1.* FROM ".$prefix."moviecast q1 join ".$prefix."moviecast q2 ON (q1.movie_id=q2.movie_id) WHERE 'abc'='abc') as moviecast ON (movie.movie_id = moviecast.movie_id)";
+    $$s{filter} = "[cast] contains 'harrison'";
+    my $o = CGI::OptimalQuery->new($s);
+    $o->output();
+    ok($buf =~ /Spielberg/s, 'inline view in joins test');
+  }
 }
 

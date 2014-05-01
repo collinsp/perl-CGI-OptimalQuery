@@ -564,8 +564,14 @@ sub create_where {
           $fromSql =~ s/^LEFT\s*//i;
           $fromSql =~ s/^OUTER\s*//i;
           $fromSql =~ s/^JOIN\s*//i;
-          $fromSql =~ s/\s*ON\s*\((.*?)\)\s*$//i;
-          my $corelatedJoin = $1; 
+
+          my $corelatedJoin;
+          if ($fromSql =~ /^(.*)\bON\s*\((.*)\)\s*$/i) {
+            $fromSql = $1;
+            $corelatedJoin = $2;
+          } else {
+            die "could not parse for corelated join";
+          }
 
           $preSql  .= 'EXISTS ( SELECT 1 FROM '.$fromSql.' WHERE ('.$corelatedJoin.') AND ';
           $postSql .= ')';
@@ -1497,6 +1503,7 @@ sub type_map {
   -4 => 'clob',
   -5 => 'num',
   -6 => 'num',
+  -9 => 'char',
   1 => 'char',
   3 => 'num',    # is decimal type
   4 => 'num',

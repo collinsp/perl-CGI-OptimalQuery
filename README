@@ -47,8 +47,13 @@ DESCRIPTION
     SQL together to form an optimized SQL query, and outputing the results
     in a format the user chooses.
 
-    This module has been tested for SQLite, mysql, postgres, Microsoft SQL
-    Server, and Oracle.
+    This module has been tested for:
+
+      1) SQLite
+      2) MySQL
+      3) PostgreSQL
+      4) Microsoft SQL Server (must use MARS_Connection=yes in connection option)
+      5) Oracle
 
     The important elements the developer describes are what fields (select
     elements) the user can see and what data sets (join elements) those

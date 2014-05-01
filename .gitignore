@@ -5,3 +5,4 @@ Makefile.old
 demo/db/*
 *.tar.gz
 *.bak
+/unittestsetup.sh

@@ -4,3 +4,4 @@
 ^blib
 ^\.git
 \.tar\.gz$
+^unittestsetup\.sh$

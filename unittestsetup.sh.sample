@@ -13,18 +13,24 @@
 #   cd t
 #   perl -I../lib ./001_load.t
 
-export ORACLE_DSN='dbi:Oracle:webdev10g'
-export ORACLE_USER='events'
-export ORACLE_PASS='XXXXX'
+export OQ_DSN_SQLITE='dbi:SQLite:dbname=/tmp/oqtest.db'
+export OQ_USER_SQLITE=''
+export OQ_PASS_SQLITE=''
 
-export MYSQL_DSN='dbi:mysql:testoq'
-export MYSQL_USER='testoq'
-export MYSQL_PASS='testoq'
+#export OQ_DSN_ORACLE='dbi:Oracle:webdev10g'
+#export OQ_USER_ORACLE='events'
+#export OQ_PASS_ORACLE='XXXXX'
 
-export PG_DSN='dbi:Pg:dbname=testoq;hostaddr=127.0.0.1'
-export PG_USER='testoq'
-export PG_PASS='testoq'
+#export OQ_DSN_MYSQL='dbi:mysql:testoq'
+#export OQ_USER_MYSQL='testoq'
+#export OQ_PASS_MYSQL='testoq'
 
-export SQLSERVER_DSN='dbi:ODBC:DRIVER={ODBC Driver 11 for SQL Server};Server=wsus.sr.unh.edu;database=PDF_Submission;MARS_Connection=yes'
-export SQLSERVER_USER='XXXXXX'
-export SQLSERVER_PASS='XXXXXX'
+#export OQ_DSN_PG='dbi:Pg:dbname=testoq;hostaddr=127.0.0.1'
+#export OQ_USER_PG='testoq'
+#export OQ_PASS_PG='testoq'
+
+#export OQ_DSN_SQLSERVER='dbi:ODBC:DRIVER={ODBC Driver 11 for SQL Server};Server=wsus.sr.unh.edu;database=PDF_Submission;MARS_Connection=yes'
+#export OQ_USER_SQLSERVER='XXXXXX'
+#export OQ_PASS_SQLSERVER='XXXXXX'
+
+

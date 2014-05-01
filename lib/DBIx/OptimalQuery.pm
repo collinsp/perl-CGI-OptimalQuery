@@ -573,6 +573,9 @@ sub create_where {
             die "could not parse for corelated join";
           }
 
+          if ($token[1]{sql} =~ s/\bNOT\b// || $token[1]{sql} =~ s/\b\!\=\b/\=/) {
+            $preSql .= 'NOT ';
+          }
           $preSql  .= 'EXISTS ( SELECT 1 FROM '.$fromSql.' WHERE ('.$corelatedJoin.') AND ';
           $postSql .= ')';
           push @preBinds, @fromBinds;
@@ -1661,6 +1664,10 @@ LIMIT 0 ";
     for (my $i=0; $i < scalar(@selectColAliasOrder); $i++) {
       my $name = $selectColAliasOrder[$i];
       my $type_code = $sth->{TYPE}->[$i];
+
+      # remove parenthesis in type_code from sqlite
+      $type_code =~ s/\([^\)]*\)//;
+ 
       my $type = $type_map->{$type_code} or 
         die "could not find type code: $type_code for col $name";
       $oq->{'col_types'}->{$selectColTypeOrder[$i]}->{$name} = $type;

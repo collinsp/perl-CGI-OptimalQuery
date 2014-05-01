@@ -65,7 +65,6 @@ sub process_request {
 
 sub get_html {
   my ($q,$dbh,$userid,$selfurl) = @_;
-  my $buf;
   my $sth = $dbh->prepare(
     "SELECT id, oq_title, user_title
      FROM oq_saved_search

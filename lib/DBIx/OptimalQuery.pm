@@ -573,7 +573,10 @@ sub create_where {
             die "could not parse for corelated join";
           }
 
-          if ($token[1]{sql} =~ s/\bNOT\b// || $token[1]{sql} =~ s/\b\!\=\b/\=/) {
+          if ($token[1]{sql} =~ s/\bNOT\b//) {
+            $preSql .= 'NOT ';
+          } elsif ($token[1]{sql} eq '!=') {
+            $token[1]{sql} = '=';
             $preSql .= 'NOT ';
           }
           $preSql  .= 'EXISTS ( SELECT 1 FROM '.$fromSql.' WHERE ('.$corelatedJoin.') AND ';

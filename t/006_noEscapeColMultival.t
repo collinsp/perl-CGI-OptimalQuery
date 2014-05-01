@@ -1,6 +1,3 @@
-
-# Bob reports that noEscapeCol multi val fields aren't printing
-
 use strict;
 no warnings;
 use FindBin qw($Bin);
@@ -14,20 +11,23 @@ OQ::foreachdb(sub {
   my $oq = OQ::schema(
     'select' => {
       'U_ID' => ['movie','movie.movie_id','Movie ID'],
-      'NAME' => ['movie', 'movie.name', 'Name'],
-      'CAST' => ['moviecastperson', 'moviecastperson.name', 'All Cast (seprated by commas)']
+      'TEST' => ['moviecast', "'<a href=123456></a>'", 'TEST']
     },
-    noEscapeCol => ['CAST'],
+    'options' => {
+      'CGI::OptimalQuery::InteractiveQuery' => {
+        noEscapeCol => ['TEST'],
+      }
+    },
     'joins' => {
       'movie' => [undef, "oqtest_movie movie"],
-      'moviecast' => ['movie', 'JOIN oqtest_moviecast moviecast ON (movie.movie_id = moviecast.movie_id)', undef, { new_cursor => 1 }],
-      'moviecastperson' => ['moviecast', 'JOIN oqtest_person moviecastperson ON (moviecast.person_id=moviecastperson.person_id)']
+      'moviecast' => ['movie', 'JOIN oqtest_moviecast moviecast ON (movie.movie_id = moviecast.movie_id)', undef, { new_cursor => 1 }]
     }
   );
 
 
   $oq->output();
-  $errs .= "$OQ::DBTYPE missing Hamill; " unless $OQ::BUF =~ /Hamill/s;
+
+  $errs .= "$OQ::DBTYPE invalid; " if index($OQ::BUF, '<a href=123456></a> <a href=123456></a>') == -1;
 });
 
 is($errs, '', "noEscapeColMultival");

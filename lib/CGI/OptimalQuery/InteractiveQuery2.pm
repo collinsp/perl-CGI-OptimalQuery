@@ -221,7 +221,11 @@ $newBut
     foreach my $col (@{ $o->get_usersel_cols }) {
       my $val;
       if (exists $noEsc{$col}) {
-        $val = $$r{$col};  
+        if (ref($$r{$col}) eq 'ARRAY') {
+          $val = join(' ', @{ $$r{$col} });  
+        } else {
+          $val = $$r{$col};
+        }
       } elsif (ref($$r{$col}) eq 'ARRAY') {
         $val = join(', ', map { escapeHTML($_) } @{ $$r{$col} }); 
       } else {

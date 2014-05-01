@@ -1510,6 +1510,7 @@ sub type_map {
   -5 => 'num',
   -6 => 'num',
   -9 => 'char',
+  0 => 'char',
   1 => 'char',
   3 => 'num',    # is decimal type
   4 => 'num',

@@ -302,7 +302,7 @@ $newBut
     # ouput tools panel
     my @tools = sort keys %{$$o{schema}{tools}};
     if ($#tools > -1) {
-      $buf .= "<div class=OQToolsPanel><h2>Tools</h2><ul>";
+      $buf .= "<div class=OQToolsPanel><ul>";
       my $opened_tool_key = $$o{q}->param('tool');
       foreach my $key (sort keys %{$$o{schema}{tools}}) {
         my $tool = $$o{schema}{tools}{$key};

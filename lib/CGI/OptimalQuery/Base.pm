@@ -28,8 +28,8 @@ my %TOOLS = (
     title => "Export Data",
     handler => sub {
       return "
-<label><input type=checkbox class=OQExportAllResultsInd> all results</label>
-<br>
+<label><input type=checkbox class=OQExportAllResultsInd> all pages</label>
+<p>
 <strong>download as..</strong><br>
 <a class=OQDownloadCSV href=#>CSV (Excel)</a>,
 <a class=OQDownloadHTML href=#>HTML</a>,

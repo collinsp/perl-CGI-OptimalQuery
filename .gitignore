@@ -6,3 +6,4 @@ demo/db/*
 *.tar.gz
 *.bak
 /unittestsetup.sh
+/CGI-OptimalQuery*

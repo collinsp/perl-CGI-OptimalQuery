@@ -120,19 +120,26 @@ form.OQform {
   right: 10px;
 }
 
+.OQToolsPanel-pos-div {
+  position:relative;
+  overflow:visible;
+  height:0;
+}
+.OQToolsPanel-align-div {
+  width: auto;
+  position:absolute;
+  width: 500px;
+  top:0;
+  right:0;
+}
 .OQToolsPanel {
   display: none;
+  position: relative;
   border: 2px outset #ccc;
   background-color: #eee;
-  max-width: 940px;
-  max-height: 96%;
-  overflow: auto;
-  border-bottom-left-radius: 6px;
-  position: fixed;
-  width: 600px;
-  right: 0;
-  border-width: 0 0 2px 2px;
-  top: 0;
+  border-radius: 6px;
+  z-index:99999;
+  top: 29px;
 }
 
 .OQToolsPanel ul {
@@ -510,10 +517,21 @@ a.OQeditBut {
   background-image: url(view-statistics.png);
 }
 .OQToolsCancelBut {
-  position:absolute;right:5px;top:5px;font-size:20px;font-weight:bold;color:#858585;cursor:pointer;height:30px;width:30px;background-color:transparent;font-family:serif;border:0;
+  position:absolute;
+  right:4px;
+  top:4px;
+  font-size:20px;
+  font-weight:bold;
+  color:#858585;
+  cursor:pointer;
+  height:30px;
+  width:30px;
+  font-family:serif;
   border: 1px solid #ddd;
   border-radius: 6px;
   background-color: #eee;
+  padding: 0;
+  text-align: center;
 }
 .OQToolsCancelBut:hover {
   background-color: #ddd;

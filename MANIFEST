@@ -63,25 +63,18 @@ lib/CGI/OptimalQuery/ShowColumns.pm
 lib/CGI/OptimalQuery/XML.pm
 lib/DBIx/OptimalQuery.pm
 LICENSE
-Makefile
 Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
-pm_to_blib
 README
 t/001_load.t
-t/002_postgres.t
-t/002_postgrestest.t
 t/002_simpleusage.t
 t/003_likefilter.t
-t/003_sqlite.t
-t/004_mysql.t
 t/004_newcursor.t
 t/005_notcontainsmultival.t
-t/005_oracle.t
 t/006_noEscapeColMultival.t
-t/006_sqlserver.t
 t/007_notequalmultival.t
+t/008_filterchecks.t
 t/testutil.pl
 Todo
 unittestsetup.sh.sample

@@ -1529,7 +1529,8 @@ sub type_map {
   95 => 'date',
   'INTEGER' => 'num',
   'TEXT' => 'char',
-  'VARCHAR' => 'char'
+  'VARCHAR' => 'char',
+  'varchar' => 'char'
   };
 }
 

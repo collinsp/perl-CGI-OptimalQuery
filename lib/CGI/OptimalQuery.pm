@@ -540,7 +540,7 @@ override httpHeader content. If you prefer to not have InteractiveQuery send the
     # add html links to the person record 
     # if user selected the NAME field
     if (exists $$rec{NAME}) {
-      $$rec{NAME} = "<A HREF=/PersonRecord?id=$$$rec{ID}>".
+      $$rec{NAME} = "<A HREF=/PersonRecord?id=$$rec{ID}>".
         CGI::escapeHTML($$rec{NAME})."</A>";
     }
   }

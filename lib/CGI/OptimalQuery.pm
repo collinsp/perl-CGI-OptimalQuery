@@ -163,7 +163,7 @@ CGI::OptimalQuery - dynamic SQL query viewer
     # defined joins included in the from clause
     joins => {
         'emp' => [ undef, 'employee', undef],
-        'dept'=> ["employee", "
+        'dept'=> ["emp", "
             left join ( SELECT name FROM dept ) dept
               on (emp.dept = dept.id)"]
     },
@@ -199,7 +199,7 @@ The important elements the developer describes are what fields (select elements)
 
 Configure your web server to allow it to serve the "Resources" directory containing static html/js/css files. This directory is located near the installation path. The easiest way to find it is to execute:
 
-perl -MCGI::OptimalQuery -e '$_=$INC{"CGI/OptimalQuery.pm"};s/\.pm$/\/Resources\n/;print $_'
+  perl -MCGI::OptimalQuery -e '$_=$INC{"CGI/OptimalQuery.pm"};s/\.pm$/\/Resources\n/;print $_'
 
 If you are using Apache, add the following config:
 

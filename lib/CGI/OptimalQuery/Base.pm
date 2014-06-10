@@ -105,7 +105,9 @@ sub new {
 
   if (! $$o{schema}{URI}) {
     $_ = ($$o{q}->can('uri')) ? $$o{q}->uri() : $ENV{REQUEST_URI}; s/\?.*$//;
-    $$o{schema}{URI} = $_ or die "could not find 'URI' in schema"; 
+    $$o{schema}{URI} = $_;
+    # disabled so we can run from command line for testing where REQUEST_URI probably isn't defined
+    # or die "could not find 'URI' in schema"; 
   }
 
   $$o{schema}{URI_standalone} ||= $$o{schema}{URI};

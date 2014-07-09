@@ -566,7 +566,7 @@ sub create_where {
           $fromSql =~ s/^JOIN\s*//i;
 
           my $corelatedJoin;
-          if ($fromSql =~ /^(.*)\bON\s*\((.*)\)\s*$/i) {
+          if ($fromSql =~ /^(.*)\bON\s*\((.*)\)\s*$/is) {
             $fromSql = $1;
             $corelatedJoin = $2;
           } else {
@@ -848,6 +848,8 @@ sub create_cursors {
     ($from_sql, @from_binds) = 
       @{ $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{sql} };
     $where_sql = $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{'join'};
+
+    $from_sql .= "\n";
 
     # now join in all other deps normally for this cursor
     foreach my $i (1 .. $#$sd) {
@@ -1390,16 +1392,49 @@ sub _formulate_new_cursor {
       if scalar(@whereBinds);
   } 
 
-  # else is SQL-92 so separate out joins from table deffinition
+  # else is SQL-92 so separate out joins from table definition
   # do this by making it a pre SQL-92 type join
   # by defining $whereSql
   # and removing join sql from $fromSql
   else {
     $_ = $fromSql;
-    /\bjoin\b/i; $_ = $';
-    /\bon\s*\(([^\)]+)\)\s*$/i;
-    $fromSql = $`;
-    $whereSql = $1;
+    m/\G\s*left\b/icg;
+    m/\G\s*join\b/icg;
+
+    # parse inline view
+    if (m/\G\s*\(/cg) {
+      $fromSql = '(';
+      my $p=1;
+      my $q;
+      while ($p > 0 && m/\G(.)/g) {
+        my $c = $1;
+        if ($q) { $q = '' if $c eq $q; } # if end of quote
+        elsif ($c eq "'" || $c eq '"') { $q = $c; } # if start of quote
+        elsif ($c eq '(') { $p++; } # if left paren
+        elsif ($c eq ')') { $p--; } # if right paren
+        $fromSql .= $c;
+      }
+    }
+
+    # parse table name
+    elsif (m/\G\s*(\w+)\b/cg) {
+      $fromSql = $1;
+    }
+
+    else {
+      die "could not parse tablename";
+    }
+
+    # include alias if it exists
+    if (m/\G\s*([\d\w\_]+)\s*/cg && lc($1) ne 'on') {
+      $fromSql .= ' '.$1;
+      m/\G\s*on\b/cgi;
+    }
+
+    # get the whereSql 
+    if (m/\G\s*\((.*)\)\s*$/cgs) {
+      $whereSql = $1;
+    }
   }
 
   # define sql & sqlBinds

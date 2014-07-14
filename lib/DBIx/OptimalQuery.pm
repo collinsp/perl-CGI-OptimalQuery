@@ -1398,15 +1398,15 @@ sub _formulate_new_cursor {
   # and removing join sql from $fromSql
   else {
     $_ = $fromSql;
-    m/\G\s*left\b/icg;
-    m/\G\s*join\b/icg;
+    m/\G\s*left\b/sicg;
+    m/\G\s*join\b/sicg;
 
     # parse inline view
-    if (m/\G\s*\(/cg) {
+    if (m/\G\s*\(/scg) {
       $fromSql = '(';
       my $p=1;
       my $q;
-      while ($p > 0 && m/\G(.)/g) {
+      while ($p > 0 && m/\G(.)/scg) {
         my $c = $1;
         if ($q) { $q = '' if $c eq $q; } # if end of quote
         elsif ($c eq "'" || $c eq '"') { $q = $c; } # if start of quote
@@ -1417,7 +1417,7 @@ sub _formulate_new_cursor {
     }
 
     # parse table name
-    elsif (m/\G\s*(\w+)\b/cg) {
+    elsif (m/\G\s*(\w+)\b/scg) {
       $fromSql = $1;
     }
 
@@ -1426,7 +1426,7 @@ sub _formulate_new_cursor {
     }
 
     # include alias if it exists
-    if (m/\G\s*([\d\w\_]+)\s*/cg && lc($1) ne 'on') {
+    if (m/\G\s*([\d\w\_]+)\s*/scg && lc($1) ne 'on') {
       $fromSql .= ' '.$1;
       m/\G\s*on\b/cgi;
     }

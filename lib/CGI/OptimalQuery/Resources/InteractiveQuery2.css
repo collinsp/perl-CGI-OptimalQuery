@@ -381,9 +381,6 @@ table.OQdata td.OQdataLCol {
   border:0;
   padding: 0;
 }
-table.OQdata td.OQdataRCol {
-  border: 0;
-}
 
 table.OQdata tbody td {
   max-width: 18em;

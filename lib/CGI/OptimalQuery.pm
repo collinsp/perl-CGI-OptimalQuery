@@ -472,31 +472,13 @@ Options for an InteractiveQuery can be set by defining the following HASHREF in 
 
 Disables options for all fields. If you set all three your Optimal Query will work like a Pager.
 
-=item B<< appendCSS => "OQdoc { color: blue; }" >>
+=item B<< htmlExtraHead >>
 
-=item B<< replaceCSS => "OQdoc { color: blue; }" >>
-
-Allows developers to append or replace inline CSS. If you want to make your brain hurt, copy the CSS and manipulate rather than cook your own. For example:
-
-  # replace odd row background color with blue
-  my $css = $CGI::OptimalQuery::InteractiveQuery::get_defaultCSS();
-  $css =~ s/ (tr\.OQdataRowTypeOdd\s*\{      (?# find selector)
-              [^}]*?                         (?# match preceeding rules)
-              background\-color\:            (?# match background rule)
-             ).*?\;                          (?# match old color)
-           /\1blue;/x;                       (?# replace with new color)
-  $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{replaceCSS} = $css;
-
-The sane way of overriding the CSS is to create your own external file. To do this:
+Append additional HTML in the head section.
 
   # turns off default inline CSS
-  $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{replaceCSS} = '';
-
-  # specify external CSS file
-  $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{htmlHeader} = 
-    "<link href='/css/myOQ.css' rel='stylesheet' type='text/css'>";
-
-Overriding CSS with an external file will disable setting the title bar color and resourceURI for icons. You must manually override them.
+  $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{htmlExtraHead} .=
+    "<link href='/css/default.css' rel='stylesheet' type='text/css'>";
 
 =item B<< buildEditLink => sub { } >>
 

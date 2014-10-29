@@ -99,14 +99,14 @@ sub output {
         $buf .= " selected" if $numLeftParen==3;
         $buf .= ">(((</select>";
       }
-      $buf .= "</td><td colspan=3><input type=hidden value='".escapeHTML($namedFilter)."('>";
+      $buf .= "</td><td colspan=3>";
       my $nf = $$o{schema}{named_filters}{$namedFilter};
       if (ref($nf) eq 'ARRAY') {
         my $title = $$nf[2] || $namedFilter;
-        $buf .= "<span>".escapeHTML($title)."</span>";
-        for (my $i=0; $i <= $#$argArray; $i+=2) { 
-          $buf .= "<input type=hidden name='".escapeHTML("arg_$$argArray[$i]")."' value='".escapeHTML("arg_$$argArray[$i]").">";
-        }
+        $buf .= '<span>'.escapeHTML($title).'</span>'
+          .'<input type=hidden value="'
+          .escapeHTML("$namedFilter("
+          .join(',', map { '"'.$_.'"' } @$argArray).")").'">';
       }
       elsif (ref($nf) eq 'HASH') {
         if (ref($$nf{html_generator}) eq 'CODE') {
@@ -119,20 +119,20 @@ sub output {
             push @{$args{$name}}, $val;
           }
           while (my ($name,$vals) = each %args) {
-            $$o{q}->param('arg_'.$name,@$vals);
+            $$o{q}->param('_nf_arg_'.$name, @$vals);
           }
-          $buf .= $$nf{html_generator}->($$o{q}, 'arg_');
+          $buf .= 
+            '<input type=hidden value="'.escapeHTML("$namedFilter(").'">'
+            .$$nf{html_generator}->($$o{q}, '_nf_arg_')
+            .'<input type=hidden value="'.escapeHTML(")").'">';
         } else {
           my $title = $$nf{title} || $namedFilter;
-          $buf .= "<span>".escapeHTML($title)."</span>";
-          for (my $i=0; $i <= $#$argArray; $i+=2) { 
-            my $name = $$argArray[$i];
-            my $val  = $$argArray[$i + 1];
-            $buf .= "<input type=hidden name='arg_".escapeHTML($name)."' value='".escapeHTML($val)."'>";
-          }
+          $buf .= '<span>'.escapeHTML($title).'</span>'
+            .'<input type=hidden value="'
+            .escapeHTML("$namedFilter("
+            .join(',', map { '"'.$_.'"' } @$argArray).")").'">';
         }
       }
-      $buf .= "<input type=hidden value=')'>";
       $buf .= "</td><td>";
       if ($numRightParen == 0) {
         $buf .= "<button type=button class=rp>)</button>";

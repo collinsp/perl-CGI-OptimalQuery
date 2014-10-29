@@ -616,7 +616,12 @@ sub create_where {
           unless ref($$r{sql_generator}) eq 'CODE';
         ($deps, $binds, $name) = @{ $$r{sql_generator}->(@$args) }; 
         $deps = [$deps] if ! ref $deps;
-        $sql = shift @$binds;
+        if (ref($binds) eq 'ARRAY') {
+          $sql = shift @$binds;
+        } else {
+          $sql = $binds;
+          $binds = [];
+        }
       } else {
         die "could not find named_filter $namedFilterAlias" unless ref $r;
       }

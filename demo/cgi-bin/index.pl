@@ -31,6 +31,7 @@ print CGI::header(),
   <li><a href=autoactions_example.pl target=_blank>auto actions</a>
   <li><a href=on_select.pl target=_blank>on_select demo</a>
   <li><a href=on_selectmultiple.pl target=_blank>on_selectmultiple demo</a>
+  <li><a href=named_filters.pl target=_blank>named_filters demo</a>
 </ul>
 
 <h2>Saved Searches</h2>

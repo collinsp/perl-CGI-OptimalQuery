@@ -34,8 +34,9 @@ form.OQform {
   }
 }
 
-.OQcmds button {
+.OQcmds > * {
   font-size: .7em;
+  vertical-align: middle;
 }
 
 .OQinfo {
@@ -381,6 +382,9 @@ table.OQdata td.OQdataLCol {
   border:0;
   padding: 0;
 }
+td.OQdataLCol * {
+  vertical-align: middle;
+}
 
 table.OQdata tbody td {
   max-width: 18em;
@@ -458,14 +462,14 @@ table.OQdata tbody tr.OQupdatedRow td {
   cursor: default;
 }
 
-a.OQeditBut {
+a.OQeditBut, a.OQnewBut {
   display: inline-block;
 }
+
 .OQnewBut,.OQrefreshBut,.OQToolsBut,.OQeditBut,.OQselectBut,.OQhelpBut {
   width: 24px;
   height: 24px;
   margin: 0 0 0 20px;
-  padding: 2px;
   border: 0;
   background: transparent url(document-new-6.png) no-repeat center top;
   font-size: 0 !important;
@@ -484,6 +488,9 @@ a.OQeditBut {
 .OQeditBut {
   background-image: url(page-white_go.png);
   margin: 0;
+  height: 18px;
+  width: 18px;
+  margin: 4px;
 }
 .OQselectBut {
   background-image: url(list-add-5.png);

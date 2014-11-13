@@ -40,13 +40,17 @@ sub output {
   $opts{noEscapeCol}    ||= [];
   $opts{editLink}       ||= undef;
   $opts{htmlExtraHead}  ||= "";
+  $opts{useAjax} = 1 unless $opts{useAjax} == 0;
   $opts{httpHeader} = $$o{q}->header(-type=>'text/html',-expires=>'now')
     unless exists $opts{httpHeader};
   $opts{htmlFooter} = "</body>\n</html>\n"
     unless exists $opts{htmlFooter};
 
   my $newBut;
-  if (ref($opts{buildNewLink}) eq 'CODE') {
+  if ($opts{NewButton}) {
+    $newBut = (ref($opts{NewButton}) eq 'CODE') ? $opts{NewButton}->($o, \%opts) : $opts{NewButton};
+  }
+  elsif (ref($opts{buildNewLink}) eq 'CODE') {
     my $link = $opts{buildNewLink}->($o, \%opts);
     if ($link ne '') {
       my $target = uc($link); $target =~ s/\W//g;
@@ -109,7 +113,10 @@ sub output {
     $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
     $buf .= "
 <script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>
-<script>
+<script>";
+  
+    $buf .= "\nvar OQIQ2_useAjax=$opts{useAjax};\n";
+    $buf .= "
 (function(){
 $script
 })();

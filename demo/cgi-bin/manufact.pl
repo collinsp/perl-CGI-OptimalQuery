@@ -25,7 +25,9 @@ my %schema = (
   },
   'options' => {
     'CGI::OptimalQuery::InteractiveQuery' => {
-      'editLink' => 'record.pl'
+      useAjax => 0,
+      NewButton => "<a href=record.pl class=OQnewBut>new</a>",
+      OQdataLCol => sub { my ($rec) = @_; return "<a class=OQeditBut href='record.pl?id=$$rec{U_ID}'></a>" },
     }
   }
 );

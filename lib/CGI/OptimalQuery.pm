@@ -500,6 +500,12 @@ Append additional HTML in the head section.
 
 specify the background color of the optimal query GUI.
 
+=item B<< useAjax => 1 >>
+
+Reload the data using ajax. Ajax loading is the default due to backwards compatibility. It is recommended that you set this to 0 unless you use popup windows.
+
+=item B<< NewButton => "<a href=record.pl class=OQnewBut>new</a>" >>
+
 =item B<< editButtonLabel => 'edit' >>
 
 =item B<< editLink => '/link/to/record' >>

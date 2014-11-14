@@ -28,7 +28,7 @@ my %TOOLS = (
     title => "Export Data",
     handler => sub {
       return "
-<label><input type=checkbox class=OQExportAllResultsInd> all pages</label>
+<label><input type=checkbox class=OQExportAllResultsInd checked> all pages</label>
 <p>
 <strong>download as..</strong><br>
 <a class=OQDownloadCSV href=#>CSV (Excel)</a>,

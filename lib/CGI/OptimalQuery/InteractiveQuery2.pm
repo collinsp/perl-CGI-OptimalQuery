@@ -335,7 +335,6 @@ $newBut
   } else {
 
     $buf .= "<div class=OQdocBottom>$opts{OQdocBottom}</div>";
-    #$buf .= "<a href=# style='color: #999; float: right;' onclick=\"document.cookie='OQIQ2=;path=/;expires=Thu, 01-Jan-1970 00:00:01 GMT';window.location.reload(true);return false;\">classic mode</a>" if $ENV{HTTP_COOKIE} =~ /\bOQIQ2\=1\b/;
     $buf .= $opts{htmlFooter};
   }
 

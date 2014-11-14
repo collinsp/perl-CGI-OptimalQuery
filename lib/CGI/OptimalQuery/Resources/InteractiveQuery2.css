@@ -142,6 +142,9 @@ form.OQform {
   z-index:99999;
   top: 29px;
 }
+.OQToolsPanel * {
+  vertical-align: middle;
+}
 
 .OQToolsPanel ul {
   margin: 0;
@@ -262,10 +265,11 @@ form.OQform {
   padding: 16px;
   border-top: 1px solid #ccc;
   border-bottom: 1px solid #bbb;
+  max-height: 600px;
+  overflow: auto;
 }
 
 .OQToolExpander {
-  cursor: pointer;
   font-size: .9em;
   color: #444;
   position: relative;
@@ -278,6 +282,7 @@ form.OQform {
 .OQToolExpander h3 {
   margin: 0;
   padding: 10px;
+  cursor: pointer;
 }
 
 

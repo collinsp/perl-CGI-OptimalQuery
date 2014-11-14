@@ -40,7 +40,17 @@ sub output {
   $opts{noEscapeCol}    ||= [];
   $opts{editLink}       ||= undef;
   $opts{htmlExtraHead}  ||= "";
-  $opts{useAjax} = 1 unless $opts{useAjax} == 0;
+  if (! exists $opts{usePopups}) {
+    $opts{usePopups}=1;
+  } else {
+    $opts{usePopups}=($opts{usePopups}) ? 1 : 0;
+  }
+  if (! exists $opts{useAjax}) {
+    $opts{useAjax} = $opts{usePopups};
+  } else {
+    $opts{useAjax}=($opts{useAjax}) ? 1 : 0;
+  }
+
   $opts{httpHeader} = $$o{q}->header(-type=>'text/html',-expires=>'now')
     unless exists $opts{httpHeader};
   $opts{htmlFooter} = "</body>\n</html>\n"
@@ -75,6 +85,8 @@ sub output {
     my $script;
     $script .= "window.OQWindowHeight=$opts{WindowHeight};\n" if $opts{WindowHeight};
     $script .= "window.OQWindowWidth=$opts{WindowWidth};\n" if $opts{WindowWidth};
+    $script .= "window.OQuseAjax=$opts{useAjax};\n";
+    $script .= "window.OQusePopups=$opts{usePopups};\n";
 
     if (! exists $opts{htmlHeader}) {
       $opts{htmlHeader} =
@@ -113,10 +125,7 @@ sub output {
     $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
     $buf .= "
 <script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>
-<script>";
-  
-    $buf .= "\nvar OQIQ2_useAjax=$opts{useAjax};\n";
-    $buf .= "
+<script>
 (function(){
 $script
 })();

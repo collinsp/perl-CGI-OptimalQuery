@@ -502,7 +502,7 @@ specify the background color of the optimal query GUI.
 
 =item B<< useAjax => 1 >>
 
-Reload the data using ajax. Ajax loading is the default due to backwards compatibility. It is recommended that you set this to 0 unless you use popup windows.
+Reload the data using ajax. Defaults to 1 unless not specified and usePopups is set to 0.
 
 =item B<< NewButton => "<a href=record.pl class=OQnewBut>new</a>" >>
 
@@ -556,6 +556,10 @@ Specify custom code to print the first or last column element. This is most ofte
 =item B<< OQformBottom => "bottom of form" >>
 
 =item B<< OQformTop => "top of form" >>
+
+=item B<< usePopups => 1|0 >>
+
+use popups when opening a record form using the built in buttons The default is 1. If this is set to 1, useAjax default is 1.
 
 =item B<< WindowHeight => INT >>
 

@@ -5,6 +5,8 @@ demo/cgi-bin/emailmerge_example.pl
 demo/cgi-bin/index.pl
 demo/cgi-bin/inventory.pl
 demo/cgi-bin/manufact.pl
+demo/cgi-bin/named_filters.pl
+demo/cgi-bin/old.pl
 demo/cgi-bin/on_select.pl
 demo/cgi-bin/on_selectmultiple.pl
 demo/cgi-bin/people.pl

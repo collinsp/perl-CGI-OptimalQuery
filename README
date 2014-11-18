@@ -22,7 +22,7 @@ SYNOPSIS
         # defined joins included in the from clause
         joins => {
             'emp' => [ undef, 'employee', undef],
-            'dept'=> ["employee", "
+            'dept'=> ["emp", "
                 left join ( SELECT name FROM dept ) dept
                   on (emp.dept = dept.id)"]
         },
@@ -73,8 +73,7 @@ INSTALLATION
     containing static html/js/css files. This directory is located near the
     installation path. The easiest way to find it is to execute:
 
-    perl -MCGI::OptimalQuery -e
-    '$_=$INC{"CGI/OptimalQuery.pm"};s/\.pm$/\/Resources\n/;print $_'
+      perl -MCGI::OptimalQuery -e '$_=$INC{"CGI/OptimalQuery.pm"};s/\.pm$/\/Resources\n/;print $_'
 
     If you are using Apache, add the following config:
 
@@ -348,34 +347,12 @@ INTERACTIVE QUERY OPTIONS
         Disables options for all fields. If you set all three your Optimal
         Query will work like a Pager.
 
-    appendCSS => "OQdoc { color: blue; }"
-    replaceCSS => "OQdoc { color: blue; }"
-        Allows developers to append or replace inline CSS. If you want to
-        make your brain hurt, copy the CSS and manipulate rather than cook
-        your own. For example:
-
-          # replace odd row background color with blue
-          my $css = $CGI::OptimalQuery::InteractiveQuery::get_defaultCSS();
-          $css =~ s/ (tr\.OQdataRowTypeOdd\s*\{      (?# find selector)
-                      [^}]*?                         (?# match preceeding rules)
-                      background\-color\:            (?# match background rule)
-                     ).*?\;                          (?# match old color)
-                   /\1blue;/x;                       (?# replace with new color)
-          $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{replaceCSS} = $css;
-
-        The sane way of overriding the CSS is to create your own external
-        file. To do this:
+    htmlExtraHead
+        Append additional HTML in the head section.
 
           # turns off default inline CSS
-          $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{replaceCSS} = '';
-
-          # specify external CSS file
-          $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{htmlHeader} = 
-            "<link href='/css/myOQ.css' rel='stylesheet' type='text/css'>";
-
-        Overriding CSS with an external file will disable setting the title
-        bar color and resourceURI for icons. You must manually override
-        them.
+          $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{htmlExtraHead} .=
+            "<link href='/css/default.css' rel='stylesheet' type='text/css'>";
 
     buildEditLink => sub { }
           # override the built-in edit link builder
@@ -394,6 +371,11 @@ INTERACTIVE QUERY OPTIONS
     color => '#cccccc'
         specify the background color of the optimal query GUI.
 
+    useAjax => 1
+        Reload the data using ajax. Defaults to 1 unless not specified and
+        usePopups is set to 0.
+
+    NewButton => "<a href=record.pl class=OQnewBut>new</a>"
     editButtonLabel => 'edit'
     editLink => '/link/to/record'
         OptimalQuery will automatically create an edit and new button if
@@ -418,7 +400,7 @@ INTERACTIVE QUERY OPTIONS
             # add html links to the person record 
             # if user selected the NAME field
             if (exists $$rec{NAME}) {
-              $$rec{NAME} = "<A HREF=/PersonRecord?id=$$$rec{ID}>".
+              $$rec{NAME} = "<A HREF=/PersonRecord?id=$$rec{ID}>".
                 CGI::escapeHTML($$rec{NAME})."</A>";
             }
           }
@@ -443,6 +425,10 @@ INTERACTIVE QUERY OPTIONS
     OQdocTop => "top of the doc (outside form)"
     OQformBottom => "bottom of form"
     OQformTop => "top of form"
+    usePopups => 1|0
+        use popups when opening a record form using the built in buttons The
+        default is 1. If this is set to 1, useAjax default is 1.
+
     WindowHeight => INT
     WindowWidth => INT
         Specify popup window width, height.

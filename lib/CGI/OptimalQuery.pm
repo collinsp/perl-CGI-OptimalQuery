@@ -19,12 +19,13 @@ BEGIN {
 
 # module registry - when loading a sub module, the module CGI param is
 # consulted, and the value is loaded as a module.
-my $default_module = 'InteractiveQuery';
-my %modules = (
+our $DEFAULT_MODULE = 'InteractiveQuery2';
+
+our %DEFAULT_MODULES = (
   'PrinterFriendly'   => 'CGI::OptimalQuery::PrinterFriendly',
   'CSV'               => 'CGI::OptimalQuery::CSV',
   'InteractiveFilter' => 'CGI::OptimalQuery::InteractiveFilter',
-  'InteractiveQuery'  => 'CGI::OptimalQuery::InteractiveQuery2',
+  'InteractiveQuery'  => 'CGI::OptimalQuery::InteractiveQuery',
   'XML'               => 'CGI::OptimalQuery::XML',
   'InteractiveQuery2' => 'CGI::OptimalQuery::InteractiveQuery2',
   'InteractiveFilter2' => 'CGI::OptimalQuery::InteractiveFilter2',
@@ -57,8 +58,8 @@ sub new {
   $$schema{error_handler}  ||= sub { print STDERR @_; 0; };
 
   # find module & class
-  my $module = $$schema{q}->param('module') || $$schema{module} || $default_module;
-  my $class = $$schema{modules}{$module} || $modules{$module};
+  my $module = $$schema{q}->param('module') || $$schema{module} || $DEFAULT_MODULE;
+  my $class = $$schema{modules}{$module} || $DEFAULT_MODULES{$module};
 
   # dynamically load class
   my $rv = eval "require $class";

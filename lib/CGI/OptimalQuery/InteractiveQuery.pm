@@ -858,8 +858,6 @@ document.OQform.reset();
 </div>
 $opts{htmlFooter}";
 
-  $doc .= "<a href=# style='float: right; color: #999;' onclick=\"document.cookie='OQIQ2=1;path=/';OQrefresh();return false;\">test new data viewer</a>";
-
   $$o{output_handler}->($doc);
   return undef;
 }

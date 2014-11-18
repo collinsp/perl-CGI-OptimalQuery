@@ -12,6 +12,7 @@ WriteMakefile(
                      'Test::Simple' => 0.44,
                      'DBI' => 0,
                      'JSON::XS' => 0,
-                     'Parse::RecDescent' => 0
+                     'Parse::RecDescent' => 0,
+                     'Mail::Sendmail'   => 0
                     },
 );

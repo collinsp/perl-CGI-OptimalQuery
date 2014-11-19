@@ -257,6 +257,11 @@ sub new {
     }
   }
 
+  # run all tool on_init functions
+  foreach my $v (values %{ $$o{schema}{tools} }) {
+    $$v{on_init}->($o) if ref($$v{on_init}) eq 'CODE';
+  }
+
   return $o;
 }
 

@@ -284,6 +284,18 @@ form.OQform {
   padding: 10px;
   cursor: pointer;
 }
+.AutoActionSummaryElem {
+  border-top: 1px solid #ccc;
+  clear: both;
+}
+.AutoActionSummaryElem:first-child {
+  border-top: 0;
+}
+
+.OQRemoveAutoActionBut {
+  float: right;
+  margin-top: .6em;
+}
 
 
 .OQAddColumnsPanel h1, .OQFilterPanel h1 {

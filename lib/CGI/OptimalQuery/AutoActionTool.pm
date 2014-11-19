@@ -87,19 +87,19 @@ use CGI::OptimalQuery::AutoActionTool();
 
 my $schema = {
   'select' => { .. },
-  'joins'  => { .. },
-  'tools' => {
-    'autoaction' => {
-      title => 'Auto Actions',
-      handler => \&CGI::OptimalQuery::AutoActionTool::handler
-    }
-  }
+  'joins'  => { .. }
 };
-
+CGI::OptimalQuery::AutoActionTool::install($schema);
 CGI::OptimalQuery->new($schema)->output();
 
 =cut
 
+sub install {
+  my ($schema, %opts) = @_;
+  $opts{title} ||= "Auto Actions";
+  $opts{handler} = \&handler;
+  $$schema{tools}{autoaction} = \%opts;
+}
 
 sub escapeHTML {
   return defined $_[0] ? CGI::escapeHTML($_[0]) : '';
@@ -111,10 +111,16 @@ sub handler {
   my $opts = $$o{schema}{tools}{autoaction}{options};
 
   # execute preview
-  if ($q->param('load_oq_autoaction') =~ /^\d+$/) {
-    my $id = int($q->param('load_oq_autoaction'));
+  if ($q->param('load_oq_autoaction') =~ /^(\d+)$/) {
+    my $id = int($1);
     my $h = $$o{dbh}->selectrow_hashref("SELECT * FROM oq_autoaction WHERE id=?", undef, $id);
     $$o{output_handler}->(CGI::header('application/json').JSON::XS::encode_json($h));
+    return undef;
+  }
+  elsif ($q->param('OQRemoveAutoAction') =~ /^(\d+)$/) {
+    my $id = int($1);
+    $$o{dbh}->do("DELETE FROM oq_autoaction WHERE id=?", undef, $id);
+    $$o{output_handler}->(CGI::header('text/plain').'OK');
     return undef;
   }
 
@@ -137,11 +143,13 @@ sub handler {
     my @x;
     foreach my $row (@$ar) {
       my ($id, $user_title, $error_txt, $uri) = @$row;
-      my $x = "<a href=$uri?OQLoadAutoAction=$id>".escapeHTML($user_title)."</a>";
-      $x .= '<div>error: '.escapeHTML($error_txt).'</div>' if $error_txt;
-      push @x, $x;
+      $buf .= "
+<div class=AutoActionSummaryElem>
+<button data-id=$id class=OQRemoveAutoActionBut>&#10005;</button>
+<a href='".escapeHTML("$uri?OQLoadAutoAction=$id")."'>".escapeHTML($user_title)."</a>
+</div>";
+      $buf .= '<div>error: '.escapeHTML($error_txt).'</div>' if $error_txt;
     }
-    $buf .= join('<hr>', @x);
   }
 
   $buf .= "

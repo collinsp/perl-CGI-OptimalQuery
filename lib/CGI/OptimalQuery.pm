@@ -111,6 +111,7 @@ sub get_saved_search_list {
         delete $$params{filter};
         delete $$params{queryDescr};
         delete $$params{sort};
+        delete $$params{module};
         while (my ($k,$v) = each %$params) {
           $stateArgs .= "&amp;$k=";
           $stateArgs .= (ref($v) eq 'ARRAY') ? CGI::escape($$v[0]) : CGI::escape($v);

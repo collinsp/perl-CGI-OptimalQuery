@@ -19,7 +19,7 @@ sub output {
   foreach my $colAlias (@c) {
     my $label = $$s{$colAlias}[2];
     my $colOpts = $$s{$colAlias}[3];
-    $buf .= '<label><input type=checkbox value="'.escapeHTML($colAlias).'">'
+    $buf .= '<label class=ckbox><input type=checkbox value="'.escapeHTML($colAlias).'">'
       .escapeHTML($label).'</label>'
       unless $label eq '' || $$colOpts{disable_select} || $$colOpts{is_hidden};
   }

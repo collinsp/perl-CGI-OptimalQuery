@@ -19,9 +19,13 @@ my $saved_searches_html = CGI::OptimalQuery::get_saved_search_list($q, $dbh, $us
 print CGI::header(), 
 "<!DOCTYPE html>
 <html>
+<head>
+<title>CGI::OptimalQuery - dynamic SQL query viewer</title>
+</head>
 <body>
+<h1>Example App Dashboard</h1>
+<hr>
 <form method=post>
-<h1>My Simple Dashboard <button type=submit>reload</button></h1>
 <ul>
   <li><a href=inventory.pl target=_blank>inventory</a>
   <li><a href=people.pl target=_blank>people</a>
@@ -35,9 +39,13 @@ print CGI::header(),
   <li><a href=old.pl target=_blank>old v1 example</a>
 </ul>
 
-<h2>Saved Searches</h2>
-$saved_searches_html
+".(($saved_searches_html)?"<h2>Saved Searches</h2>$saved_searches_html":"")."
 </form>
+
+<hr>
+more info on: 
+<a href='https://github.com/collinsp/perl-CGI-OptimalQuery'>github</a>, 
+<a href='http://search.cpan.org/~likehike/CGI-OptimalQuery'>CPAN</a>
 
 </body>
 </html>";

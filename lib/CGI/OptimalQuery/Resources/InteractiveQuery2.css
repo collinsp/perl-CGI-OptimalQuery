@@ -313,17 +313,9 @@ form.OQform {
   margin: .5em;
 }
 .OQAddColumnsPanel label {
-  display: block;
-  margin-top: .2em;
-  padding: .5em;
-  float: left;
-  width: 200px;
+  min-width: 140px;
   cursor: pointer;
 }
-.OQAddColumnsPanel label:hover {
-  background-color: #ffd;
-}
-
 .CancelFilterBut, .OKFilterBut {
   font-size: 1.6em;
   margin: .5em;
@@ -333,30 +325,35 @@ form.OQform {
   color: #ccc;
   border: 0;
   background-color: transparent;
+  font-size: 1.2em;
 }
 .OQFilterPanel {
   text-align: center;
 }
 .OQFilterPanel table {
   margin: auto;
+  border-spacing: 0;
 }
 .OQFilterPanel td {
   text-align: center;
+  vertical-align: top;
+  padding: 2px;
 }
-.OQFilterPanel table select, .OQFilterPanel table input {
-  border: 0; 
-  background-color: #ddd;
+.OQFilterPanel select, .OQFilterPanel input {
+  padding: 4px;
+  background-color:#ddd;
+  border-width: 0;
 }
 .OQFilterPanel .rexptypesel {
   position: relative;
   width: 200px;
-  margin-top: -11px;
+  height: .9em;
 }
 .OQFilterPanel .rexptypesel input {
   position: absolute;
   left: 0;
   top: 0;
-  width: 180px;
+  width: 174px;
   z-index: 20;
 }
 .OQFilterPanel .rexptypesel select {
@@ -578,4 +575,27 @@ a.OQeditBut, a.OQnewBut {
 .OQPager input {
   width: 3em;
   border: 1px solid #eee;
+}
+
+/* disable user select */
+label.ckbox, table.OQdata  {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+label.ckbox {
+  display: inline-block;
+  margin: 2px;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+label.ckbox:hover {
+  background-color: #ffd;
+}
+label.ckbox > * {
+  vertical-align: middle;
 }

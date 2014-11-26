@@ -341,9 +341,10 @@ form.OQform {
   padding: 2px;
 }
 .OQFilterPanel select, .OQFilterPanel input {
-  padding: 4px;
+  padding: 4px 0 4px 4px !important;
+  margin: !important;
+  border-width: 0 !important;
   background-color:#ddd;
-  border-width: 0;
 }
 .OQFilterPanel .rexptypesel {
   position: relative;

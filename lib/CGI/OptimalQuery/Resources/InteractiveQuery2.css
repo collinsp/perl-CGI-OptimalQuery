@@ -125,6 +125,7 @@ form.OQform {
   position:relative;
   overflow:visible;
   height:0;
+  z-index: 99; /* needed for IE7 */
 }
 .OQToolsPanel-align-div {
   width: auto;

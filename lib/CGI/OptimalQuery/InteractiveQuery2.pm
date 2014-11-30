@@ -63,16 +63,24 @@ sub output {
   elsif (ref($opts{buildNewLink}) eq 'CODE') {
     my $link = $opts{buildNewLink}->($o, \%opts);
     if ($link ne '') {
-      my $target = uc($link); $target =~ s/\W//g;
-      $newBut = "<button type=button title=new class=OQnewBut data-href='".escapeHTML($link)."'>new</button>";
+      $newBut = "<button type=button title=new class=OQnewBut";
+      if ($opts{usePopups}) {
+        my $target = uc($link); $target =~ s/\W//g;
+        $newBut .= " data-target='$target'";
+      }
+      $newBut .= " data-href='".escapeHTML($link)."'>new</button>";
     }
   }
   elsif (exists $opts{buildNewLink} && $opts{buildNewLink} eq '') {}
   elsif ($opts{editLink} ne '') {
-    my $target = uc($opts{editLink}); $target =~ s/\W//g;
     my $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."on_update=OQrefresh&act=new";
     if ($link ne '') {
-      $newBut = "<button type=button title=new class=OQnewBut data-href='".escapeHTML($link)."' data-target=$target>new</button>";
+      $newBut = "<button type=button title=new class=OQnewBut";
+      if ($opts{usePopups}) {
+        my $target = uc($opts{editLink}); $target =~ s/\W//g;
+        $newBut .= " data-target='$target'";
+      }
+      $newBut .= " data-href='".escapeHTML($link)."'>new</button>";
     }
   }
 

@@ -10,7 +10,8 @@ use CGI::OptimalQuery();
 
 chdir "$Bin/..";
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","");
+my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
+
 my $q = new CGI();
 my $userid = 12345;
 
@@ -36,6 +37,7 @@ print CGI::header(),
   <li><a href=on_select.pl target=_blank>on_select demo</a>
   <li><a href=on_selectmultiple.pl target=_blank>on_selectmultiple demo</a>
   <li><a href=named_filters.pl target=_blank>named_filters demo</a>
+  <li><a href=saved_search_alert.pl target=_blank>saved search alert demo</a>
   <li><a href=old.pl target=_blank>old v1 example</a>
 </ul>
 

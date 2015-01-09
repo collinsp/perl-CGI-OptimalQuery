@@ -9,7 +9,7 @@ use CGI::OptimalQuery();
 
 chdir "$Bin/..";
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","");
+my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
 
 my %schema = (
   'dbh' => $dbh,

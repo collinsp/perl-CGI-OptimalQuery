@@ -7,8 +7,12 @@ use CGI();
 use Carp('confess');
 use POSIX();
 use DBIx::OptimalQuery;
-use Data::Dumper;
 use JSON::XS;
+
+# some tools that OQ auto activates
+use CGI::OptimalQuery::ExportDataTool();
+use CGI::OptimalQuery::SaveSearchTool();
+use CGI::OptimalQuery::LoadSearchTool();
 
 sub escapeHTML {
   return defined $_[0] ? CGI::escapeHTML($_[0]) : '';
@@ -21,56 +25,6 @@ sub print {
   my $o = shift;
   $o->output(@_);
 }
-
-# some default tools which are automatically installed in constructor
-my %TOOLS = (
-  'export' => {
-    title => "Export Data",
-    handler => sub {
-      return "
-<label><input type=checkbox class=OQExportAllResultsInd checked> all pages</label>
-<p>
-<strong>download as..</strong><br>
-<a class=OQDownloadCSV href=#>CSV (Excel)</a>,
-<a class=OQDownloadHTML href=#>HTML</a>,
-<a class=OQDownloadXML href=#>XML</a>";
-    }
-  },
-  'savereport' => {
-    title => "Save Report",
-    handler => sub {
-      return " 
-<label>name <input type=text class=SaveReportNameInp></label>
-<button type=button class=OQSaveReportBut>save</button>";
-    }
-  },
-  'loadreport' => {
-    title => 'Load Report',
-    handler => sub {
-      my ($o) = @_;
-      my $ar = $$o{dbh}->selectall_arrayref("
-        SELECT id, uri, user_title
-        FROM oq_saved_search
-        WHERE user_id = ?
-        AND upper(uri) = upper(?)
-        AND oq_title = ?
-        ORDER BY 2", undef, $$o{schema}{savedSearchUserID},
-          $$o{schema}{URI}, $$o{schema}{title});
-      my $buf;
-      foreach my $x (@$ar) {
-        my ($id, $uri, $user_title) = @$x;
-        $buf .= "<tr><td><a href=$uri?OQLoadSavedSearch=$id>".escapeHTML($user_title)."</a></td><td><button type=button class=OQDeleteSavedSearchBut data-id=$id>x</button></td></tr>";
-      }
-      if (! $buf) {
-        $buf = "<em>none</em>";
-      } else {
-        $buf = "<table>".$buf."</table>";
-      }
-      return $buf;
-    }
-  }
-);
-
 
 sub new { 
   my $pack = shift;
@@ -112,11 +66,6 @@ sub new {
 
   $$o{schema}{URI_standalone} ||= $$o{schema}{URI};
 
-  # install the export tool
-  if (! exists $$o{schema}{tools}{export}) {
-    $$o{schema}{tools}{export} = $TOOLS{export};
-  }
-
   # make sure default show is in array notation
   if (! ref($$o{schema}{show}) eq 'ARRAY') {
     my @ar = grep { s/^\s+//; s/\s+$//; $_ } split /\,/, $$o{schema}{show};
@@ -131,8 +80,6 @@ sub new {
       die "cannot use reserved state param name: view" if $p eq 'view';
     }
   }
-
-
 
   # construct optimal query object
   $$o{oq} = DBIx::OptimalQuery->new(
@@ -177,87 +124,17 @@ sub new {
       if ! $$o{oq}{select}{$selectAlias}[2];
   }
 
+  # install the export tool
+  CGI::OptimalQuery::ExportDataTool::activate($o);
 
-
-  # load saved search if defined
+  # if savedSearchUserID enable savereport and loadreport tools
   $$o{schema}{savedSearchUserID} ||= undef;
   if ($$o{schema}{savedSearchUserID} =~ /^\d+$/) {
-    $$o{schema}{tools}{savereport} = $TOOLS{savereport};
-    $$o{schema}{tools}{loadreport} = $TOOLS{loadreport};
-
-    # request to load a saved search?
-    if ($$o{q}->param('OQLoadSavedSearch') =~ /^\d+$/) {
-      local $$o{dbh}->{LongReadLen};
-      if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
-        $$o{dbh}{LongReadLen} = 900000;
-        my ($readLen) = $$o{dbh}->selectrow_array("SELECT dbms_lob.getlength(params) FROM oq_saved_search WHERE id = ?", undef, $$o{q}->param('OQLoadSavedSearch'));
-        $$o{dbh}{LongReadLen} = $readLen if $readLen > $$o{dbh}{LongReadLen};
-      }
-      my ($params) = $$o{dbh}->selectrow_array(
-        "SELECT params FROM oq_saved_search WHERE id = ?",
-          undef, $$o{q}->param('OQLoadSavedSearch'));
-      if ($params) {
-        $params = eval '{'.$params.'}'; 
-        if (ref($params) eq 'HASH') {
-          delete $$params{module};
-          while (my ($k,$v) = each %$params) { 
-            $$o{q}->param( -name => $k, -value => $v ); 
-          }
-        }
-      }
-    } 
-
-    # request to save a search?
-    elsif ($$o{q}->param('OQsaveSearchTitle') ne '') {
-
-      # delete old searches with this user, title, uri
-      $$o{dbh}->do("DELETE FROM oq_saved_search WHERE user_id = ? AND uri = ? AND oq_title = ? AND user_title = ?", undef, $$o{schema}{savedSearchUserID}, $$o{schema}{URI},$$o{schema}{title}, $$o{q}->param('OQsaveSearchTitle'));
-
-      $$o{q}->param('queryDescr', $$o{q}->param('OQsaveSearchTitle'));
-
-      my %data;
-      foreach my $p (qw( show filter sort page rows_page queryDescr hiddenFilter )) {
-        $data{$p} = $$o{q}->param($p);
-      }
-      if (ref($$o{schema}{state_params}) eq 'ARRAY') {
-        foreach my $p (@{ $$o{schema}{state_params} }) {
-          my @v = $$o{q}->param($p);
-          $data{$p} = \@v;
-        }
-      }
-
-      local $Data::Dumper::Indent = 0;
-      local $Data::Dumper::Quotekeys = 0;
-      local $Data::Dumper::Pair = '=>';
-      local $Data::Dumper::Sortkeys = 1;
-      my $params = Dumper(\%data);
-      $params =~ s/^[^\{]+{//;
-      $params =~ s/\}\;\s*$//;
-
-      if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
-        $$o{dbh}->do("INSERT INTO oq_saved_search (id,user_id,uri,oq_title,user_title,params) VALUES (s_oq_saved_search.nextval,?,?,?,?,?)", undef, $$o{schema}{savedSearchUserID}, $$o{schema}{URI}, $$o{schema}{title}, $$o{q}->param('OQsaveSearchTitle'), $params);
-      } else {
-        $$o{dbh}->do("INSERT INTO oq_saved_search (user_id,uri,oq_title,user_title,params) VALUES (?,?,?,?,?)", undef, $$o{schema}{savedSearchUserID}, $$o{schema}{URI}, $$o{schema}{title}, $$o{q}->param('OQsaveSearchTitle'), $params);
-      }
-    }
+    CGI::OptimalQuery::LoadSearchTool::activate($o);
+    CGI::OptimalQuery::SaveSearchTool::activate($o);
   }
 
-  elsif ($$o{q}->param('OQLoadAutoAction') =~ /^(\d+)$/) {
-    my $id = $1;
-    my ($params) = $$o{dbh}->selectrow_array("SELECT params FROM oq_autoaction WHERE id=?", undef, $id);
-    if ($params) {
-      $params = decode_json($params); 
-      if (ref($params) eq 'HASH') {
-        delete $$params{module};
-        while (my ($k,$v) = each %$params) { 
-          $$o{q}->param( -name => $k, -value => $v ); 
-        }
-        $$o{q}->param(-name => 'oq_autoaction_id', -value => $1);
-      }
-    }
-  }
-
-  # run all tool on_init functions
+  # run on_init function for each enabled tool
   foreach my $v (values %{ $$o{schema}{tools} }) {
     $$v{on_init}->($o) if ref($$v{on_init}) eq 'CODE';
   }

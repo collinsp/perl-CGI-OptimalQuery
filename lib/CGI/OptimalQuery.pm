@@ -22,6 +22,7 @@ BEGIN {
 our $DEFAULT_MODULE = 'InteractiveQuery2';
 
 our %DEFAULT_MODULES = (
+  'CustomOutput'      => 'CGI::OptimalQuery::CustomOutput',
   'PrinterFriendly'   => 'CGI::OptimalQuery::PrinterFriendly',
   'CSV'               => 'CGI::OptimalQuery::CSV',
   'InteractiveFilter' => 'CGI::OptimalQuery::InteractiveFilter',
@@ -431,6 +432,9 @@ The default rows_page a user has when initially loading InteractiveQuery. Can al
 
 InteractiveQuery can optionally save searches to a database so users can revisit them latter. To do this, saved searches are tied to a unique user id. See the "Saved Searches" section for more information on this topic.
 
+=item B<< savedSearchAlerts => 0 | 1 >>
+
+If savedSearchUserID, setting savedSearchAlerts to 1 will enhance Optimal Query to optionally allow users to configure saved searches to alert them when records are added, removed, or are present. See the "Saved Search Alerts" section for additional details on configuring this feature.
 
 =item B<< sort => "[COLALIAS1] DESC, [COLALIAS2]" >>
 
@@ -600,6 +604,15 @@ Saved Searches are stored in a table in the database pointed to by the database 
     oq_title VARCHAR(1000) NOT NULL,
     user_title VARCHAR(1000) NOT NULL,
     params TEXT,
+    -- 0:disabled, 1:added, 2:removed, 4:present
+    alert_mask INT UNSIGNED NOT NULL DEFAULT 0,
+    alert_interval_min INT UNSIGNED,
+    alert_dow VARCHAR(7),
+    alert_start_hour INT UNSIGNED,
+    alert_end_hour INT UNSIGNED,
+    alert_last_dt DATETIME,
+    alert_err TEXT,
+    alert_uids LONGTEXT,
     CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
   );
 
@@ -611,6 +624,15 @@ Saved Searches are stored in a table in the database pointed to by the database 
     oq_title VARCHAR2(1000) NOT NULL,
     user_title VARCHAR2(1000) NOT NULL,
     params CLOB,
+    -- 0:disabled, 1:added, 2:removed, 4:present
+    alert_mask NUMBER NOT NULL DEFAULT 0,
+    alert_interval_min NUMBER,
+    alert_dow VARCHAR2(7),
+    alert_start_hour NUMBER,
+    alert_end_hour NUMBER,
+    alert_last_dt DATE,
+    alert_err CLOB,
+    alert_uids CLOB,
     CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
   );
   CREATE SEQUENCE s_oq_saved_search;
@@ -627,6 +649,12 @@ Optimal Query also provides a canned "Show My Saved Searches" HTML form componen
 
 Use CSS to stylize the output.
 
+
+=head1 SAVED SEARCH ALERTS
+
+Saved search alerts enhance Optimal Query to optionally allow users to configure saved searches to alert them when records are added, removed, or are present. To use this feature, follow the instructions in the "SAVED SEARCHES" section. You also need to make sure you set savedSearchAlerts to 1 in your schema if the current user is allowed to configure alerts.
+
+Lastly, you need to create a cron that will execute your OptimalQuery. You can execute the cron as frequently as you like. Every 15 minutes is a good default. Here's an example:
 
 =head1 FILTER GRAMMAR
 

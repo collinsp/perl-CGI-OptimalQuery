@@ -13,8 +13,8 @@ my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, P
 
 my %schema = (
   'dbh' => $dbh,
-  'module' => 'InteractiveQuery',
   'savedSearchUserID' => 12345,
+  'savedSearchAlerts' => 1, 
   'title' => 'The Inventory',
   'select' => {
     'U_ID' => ['inventory', 'inventory.id', 'SYS ID', { always_select => 1 }],
@@ -33,7 +33,7 @@ my %schema = (
     'inventory' => [undef, 'inventory'],
     'product' => ['inventory', 'LEFT JOIN product ON (inventory.product=product.id)'],
     'manufact' => ['product', 'LEFT JOIN manufact ON (product.manufact=manufact.id)'],
-    'owner' => ['inventory', 'LEFT JOIN person owner ON (inventory.owner=owner.id)']
+    'owner' => ['inventory', 'LEFT JOIN person owner ON (inventory.owner = owner.id)']
   },
   'options' => {
     'CGI::OptimalQuery::InteractiveQuery' => {

@@ -161,6 +161,21 @@ form.OQform {
   margin: 0;
   text-decoration: underline;
 }
+#OQSaveReportEmailAlertOpts {
+  border-color: transparent;
+  border-radius: 6px;
+  margin-top: .5em;
+}
+#OQSaveReportEmailAlertOpts > * {
+  display: none;
+}
+#OQSaveReportEmailAlertOpts.opened {
+  border-color: #eee;
+}
+#OQSaveReportEmailAlertOpts > legend,
+#OQSaveReportEmailAlertOpts.opened > * {
+  display: block;
+}
 
 .OQautoactionform a {
   display: block;

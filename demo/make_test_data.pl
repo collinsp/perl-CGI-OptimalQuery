@@ -111,6 +111,14 @@ CREATE TABLE oq_saved_search (
   oq_title TEXT NOT NULL,
   user_title TEXT NOT NULL,
   params TEXT,
+  alert_mask INTEGER NOT NULL DEFAULT 0,
+  alert_interval_min INTEGER,
+  alert_dow TEXT,
+  alert_start_hour INTEGER,
+  alert_end_hour INTEGER,
+  alert_last_dt DATETIME,
+  alert_err TEXT,
+  alert_uids TEXT,
   CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
 )");
 

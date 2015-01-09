@@ -41,7 +41,12 @@ our %DEFAULT_MODULES = (
 sub new {
   my $pack = shift;
   my $schema = $_[0];
-  $$schema{q} ||= new CGI();
+
+  if ($CGI::OptimalQuery::q) {
+    $$schema{q} = $CGI::OptimalQuery::q;
+  } else {
+    $$schema{q} ||= new CGI();
+  }
 
   # if this is a mod_perl query object, turn it into a CGI object
   if (! $$schema{q}->isa('CGI')) {

@@ -2,10 +2,17 @@ package CGI::OptimalQuery::SaveSearchTool;
 
 use strict;
 use Data::Dumper;
-use CGI();
+use Mail::Sendmail();
+use CGI qw( escapeHTML );
 
-
+# specify max character threshold after which report rows are now outputted in email
 my $TRUNC_REPORT_CHAR_LIMIT = 500000;   # ~ .5MB allowed per report
+
+# specify maximum rows allowed to be procssed by saved search alerts
+# warning: don't set this too high
+# all uids are stored in oq_saved_search.alert_uids field
+# this field is then consulted to determine when new records are added/removed
+my $MAX_ROWS = 1000;
 
 sub on_init {
   my ($o) = @_;
@@ -87,6 +94,10 @@ sub on_init {
       push @cols, "alert_end_hour";
       push @vals, '?';
       push @binds, scalar($$o{q}->param('alert_end_hour'));
+
+      push @cols, "alert_uids";
+      push @vals, '?';
+      push @binds, "##NOTPOPULATED##";
     }
 
     my $sql = "INSERT INTO oq_saved_search (".join(',',@cols).") VALUES (".join(',', @vals).")";
@@ -106,20 +117,17 @@ sub on_open {
   <legend><label class=ckbox><input type=checkbox id=OQalertenabled> send email alert</label></legend>
 
   <p>
-  <label>When Data is:
-    <select id=OQalert_mask>
-      <option value=1>added
-      <option value=2>removed
-      <option value=4>present
-    </select>
-  </label>
+  <label>when records are:</label>
+  <label><input type=checkbox name=OQalert_mask value=1 checked> added</label>
+  <label><input type=checkbox name=OQalert_mask value=2> removed</label>
+  <label><input type=checkbox name=OQalert_mask value=4> present</label>
+    
+  <p>
+  <label>check every: <input type=text id=OQalert_interval_hour value=3 size=3 maxlength=4> hours</label></label>
 
   <p>
-  <label>Check Every: <input type=text id=OQalert_interval_hour value=3 size=3 maxlength=4> hours</label></label>
-
-  <p>
-  <label title='Specify which days to send the alert.'>On Days:</label>
-  <label class=ckbox title=Sunday><input type=checkbox class=OQalert_dow value=7>S</label>
+  <label title='Specify which days to send the alert.'>on days:</label>
+  <label class=ckbox title=Sunday><input type=checkbox class=OQalert_dow value=0>S</label>
   <label class=ckbox title=Monday><input type=checkbox class=OQalert_dow value=1 checked>M</label>
   <label class=ckbox title=Tuesday><input type=checkbox class=OQalert_dow value=2 checked>T</label>
   <label class=ckbox title=Wednesday><input type=checkbox class=OQalert_dow value=3 checked>W</label>
@@ -128,7 +136,8 @@ sub on_open {
   <label class=ckbox title=Saturday><input type=checkbox class=OQalert_dow value=6>S</label>
 
   <p>
-  <label title='Specify start hour to sent an alert.'>From: <input type=text value='8AM' size=4 maxlength=4 id=OQalert_start_hour placeholder=8AM></label> <label>To: <input type=text value='5PM' size=4 maxlength=4 id=OQalert_end_hour placeholder=5PM></label>
+  <label title='Specify start hour to sent an alert.'>from: <input type=text value='8AM' size=4 maxlength=4 id=OQalert_start_hour placeholder=8AM></label> <label>to: <input type=text value='5PM' size=4 maxlength=4 id=OQalert_end_hour placeholder=5PM></label>
+  <p><strong>Notice:</strong> This tool sends automatic alerts over insecure email. By creating an alert you acknowledge that the fields in the report will never be used to store sensitive data.</strong>
 </fieldset>" if $$o{schema}{savedSearchAlerts};
   $buf .= "<p><button type=button class=OQSaveReportBut>save</button>";
   return $buf;
@@ -144,6 +153,7 @@ sub activate {
 }
 
 
+# this function is called from a cron to help execute saved searches that have alerts that need to be checked
 our $current_saved_search;
 sub custom_output_handler {
   my ($o) = @_;
@@ -156,6 +166,8 @@ sub custom_output_handler {
   } elsif (exists $$o{schema}{options}{'CGI::OptimalQuery::InteractiveQuery'}) {
     %opts = %{$$o{schema}{options}{'CGI::OptimalQuery::InteractiveQuery'}};
   }
+  my %noEsc = map { $_ => 1 } @{ $opts{noEscapeCol} };
+
 
   # fetch all records in the report
   # update the uids hash
@@ -165,91 +177,102 @@ sub custom_output_handler {
   # if it was not previously seen, and we see it now, we'll mark it with a 3
   # at the end of processing all previously found uids that weren't seen will still be marked 1
   # which indicates the record is no longer within the report
+  my $cnt = 0;
+  my $dataTruc = 0;
   while (my $rec = $o->{sth}->fetchrow_hashref()) {
-    $opts{mutateRecord}->($r) if ref($opts{mutateRecord}) eq 'CODE';
+print STDERR "got row: ".Dumper($rec)."\n";
+    die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if ++$cnt > $MAX_ROWS;
+    $opts{mutateRecord}->($rec) if ref($opts{mutateRecord}) eq 'CODE';
 
     # if this record has been seen before, mark it with a '2'
     if (exists $$current_saved_search{uids}{$$rec{U_ID}}) {
       $$current_saved_search{uids}{$$rec{U_ID}}=2; 
+print STDERR "setting: $$rec{U_ID}=>2\n";
     }
 
     # if this record hasn't been seen before, mark it with a '3'
     else {
       $$current_saved_search{uids}{$$rec{U_ID}}=3; 
+print STDERR "setting: $$rec{U_ID}=>3\n";
     }
 
     # if we need to output report
-    my $dataTruc = 0;
-    if ($$current_saved_search{ALERT_MASK} & 5) {
+    if (! $$current_saved_search{is_initial_run} && ! $dataTruc && (
+             # output if when rows are present is checked
+             ($$current_saved_search{ALERT_MASK} & 4)
+             # output if when rows are added is checked AND this is a new row not seen before
+          || ($$current_saved_search{ALERT_MASK} & 1 && $$current_saved_search{uids}{$$rec{U_ID}}==3))) {
       # get open record link
       my $link;
       if (ref($opts{OQdataLCol}) eq 'CODE') {
-        $link = $opts{OQdataLCol}->($r);
+        $link = $opts{OQdataLCol}->($rec);
         if ($link =~ /href\s*\=\s*\"?\'?([^\s\'\"\>]+)/i) {
           $link = $1; 
         }
       } elsif (ref($opts{buildEditLink}) eq 'CODE') {
-        $link = $opts{buildEditLink}->($o, $r, \%opts);
-      } elsif ($opts{editLink} ne '' && $$r{U_ID} ne '') {
-        $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."act=load&id=$$r{U_ID}";
+        $link = $opts{buildEditLink}->($o, $rec, \%opts);
+      } elsif ($opts{editLink} ne '' && $$rec{U_ID} ne '') {
+        $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."act=load&id=$$rec{U_ID}";
       }
-      $buf .= "<tr><td>";
+      $buf .= "<tr";
+
+      # if this record is first time visible
+      $buf .= " class=ftv" if $$current_saved_search{uids}{$$rec{U_ID}}==3;
+      $buf .= "><td>";
       $buf .= "<a href='".$link."'>open</a>" if $link;
       $buf .= "</td>";
       foreach my $col (@{ $o->get_usersel_cols }) {
         my $val;
         if (exists $noEsc{$col}) {
-          if (ref($$r{$col}) eq 'ARRAY') {
-            $val = join(' ', @{ $$r{$col} });  
+          if (ref($$rec{$col}) eq 'ARRAY') {
+            $val = join(' ', @{ $$rec{$col} });  
           } else {
-            $val = $$r{$col};
+            $val = $$rec{$col};
           }
-        } elsif (ref($$r{$col}) eq 'ARRAY') {
-          $val = join(', ', map { escape_html($_) } @{ $$r{$col} }); 
+        } elsif (ref($$rec{$col}) eq 'ARRAY') {
+          $val = join(', ', map { escapeHTML($_) } @{ $$rec{$col} }); 
         } else {
-          $val = escape_html($$r{$col});
+          $val = escapeHTML($$rec{$col});
         }
         $buf .= "<td>$val</td>";
       }
-      $buf .= "</tr>";
+      $buf .= "</tr>\n";
 
-      if (length($buf) > $TRUNC_REPORT_CHAR_LIMIT) {
-        $dataTruc = 1;
-        last;
-      }
+      $dataTruc = 1 if length($buf) > $TRUNC_REPORT_CHAR_LIMIT;
     }
     $o->{sth}->finish();
 
     # if we found rows, encase it in a table with thead
     if ($buf) {
-      $buf = "<table class=OQdata><thead><tr><td></td>";
+      my $buf2 = "<table class=OQdata><thead><tr><td></td>";
       foreach my $colAlias (@{ $o->get_usersel_cols }) {
         my $colOpts = $$o{schema}{select}{$colAlias}[3];
-        $buf .= "<td>".escape_html($o->get_nice_name($colAlias))."</td>";
+        $buf2 .= "<td>".escapeHTML($o->get_nice_name($colAlias))."</td>";
       }
-      $buf .= "</tr></thead><tbody>$buf</tbody></table>";
-      $buf .= "<p><strong>This report does not show all data found because the report exceeds the maximum limit. Reduce report size by including less columns or adding additional filters.</strong>" if $dataTruc;
+      $buf2 .= "</tr></thead><tbody>\n$buf\n</tbody></table>";
+      $buf2 .= "<p><strong>This report does not show all data found because the report exceeds the maximum limit. Reduce report size by hiding columns, adding additional filters, or only showing new records.</strong>" if $dataTruc;
+      $buf = $buf2;
     }
   }
-  $$current_saved_search{buf} = $buf;
+
+print STDERR "UIDS: ".Dumper($$current_saved_search{uids});
+  $$current_saved_search{buf} .= $buf;
 }
 
 sub execute_saved_search_alerts {
   my %opts = @_;
 
-  my %emails;
+  die "missing handler CODEREF" unless ref($opts{handler}) eq 'CODE';
+  my $dbh = $opts{dbh} or die "missing dbh";
+  $opts{error_handler} ||= sub { print STDERR join(' ', @_)."\n"; };
+
+  $opts{error_handler}->("execute_saved_search_alerts started") if $opts{debug};
 
   local $CGI::OptimalQuery::CustomOutput::custom_output_handler = \&custom_output_handler;
 
-  local $is_processing_saved_search_alerts = 1;
-
-  die "missing handler CODEREF" unless ref($opts{handler}) eq 'CODE';
-  my $dbh = $opts{dbh} or die "missing dbh";
-  $opts{error_handler} ||= sub { print STDERR @_; };
-
   my @dt = localtime;
-  my $dow = $dt[6] + 1;
-  my $hour = $dt[5];
+  my $dow = $dt[6];
+  my $hour = $dt[2];
 
   if ($$dbh{Driver}{Name} eq 'Oracle') {
     $$dbh{LongReadLen} = 900000;
@@ -263,65 +286,151 @@ sub execute_saved_search_alerts {
   }
 
   # find all saved searches that need to be checked
-  my $sth = $dbh->prepare("
-    SELECT *
-    FROM oq_saved_search
-    WHERE alert_dow LIKE ?
-    AND alert_start_hour >= ?
-    AND alert_end_hour <= ?
-    AND alert_interval_min > (strftime('%s','now') - strftime('%s',COALESCE(alert_last_dt,'2000-01-01')))
-    ORDER BY id");
-  $sth->execute('%'.$dow.'%', $hour, $hour);
   my @recs;
-  while (my $h = $sth->fetchrow_hashref()) { push @recs, $h; }
+  { local $$dbh{FetchHashKeyName} = 'NAME_uc';
 
-  foreach my $rec (@recs) {
-    $current_saved_search = $rec;
-    $p = eval '{'.$$rec{params}.'}'; 
-    $p = {} unless ref($params) eq 'HASH';
-    $$p{module} = 'CustomOuput';
-    $$p{page} = 1; $$p{rows_page} = 'All';
-    $$rec{q} = new CGI($p);
+    my $sth = $dbh->prepare("
+      SELECT *
+      FROM oq_saved_search
+      WHERE alert_uids = '##NOTPOPULATED##'
+      OR (  alert_dow LIKE ?
+        AND ? BETWEEN alert_start_hour AND alert_end_hour
+        AND (strftime('%s','now') - strftime('%s',COALESCE(alert_last_dt,'2000-01-01'))) > alert_interval_min
+      )
+      ORDER BY id");
+    
+    my @binds = ('%'.$dow.'%', $hour);
+    $opts{error_handler}->("search for saved searches that need checked. BINDS: ".join(',', @binds)) if $opts{debug};
+    $sth->execute(@binds);
+    while (my $h = $sth->fetchrow_hashref()) { push @recs, $h; }
+  }
+
+  $opts{error_handler}->("found ".scalar(@recs)." saved searches to execute") if $opts{debug};
+
+  # for each saved search that has alerts which need to be checked
+  while ($#recs > -1) {
+    my $rec = pop @recs;
+
+    local $current_saved_search = $rec;
     my %uids = map { $_ => 1 } split /\~/, $$rec{ALERT_UIDS};
-    $$rec{uids} = \%uids;
+    $$rec{uids} = \%uids; # contains all the previously seen uids
+    $$rec{buf} = ''; # will be populated with a table containing report rows for a simple HTML email
+    $$rec{err_msg} = '';
+    $$rec{is_initial_run} = 1 if $$rec{ALERT_UIDS} eq '##NOTPOPULATED##';
+    $opts{error_handler}->("executing saved search: ".Dumper($rec)) if $opts{debug};
 
-    # check to see if records were added
-    if ($$rec{ALERT_MASK} & 1) {
-    }
-    # check to see if records were removed
-    if ($$rec{ALERT_MASK} & 2) {
-    }
-    # check to see if records were present
-    if ($$rec{ALERT_MASK} & 4) {
-    }
+    # create CGI query
+    my $p = eval '{'.$$rec{params}.'}'; 
+    $p = {} unless ref($p) eq 'HASH';
+    $$p{module} = 'CustomOutput'; # this will call our custom_output_handler function
+    $$p{page} = 1;
+    $$p{rows_page} = $MAX_ROWS + 1; # one more to detect overflow
+    $CGI::OptimalQuery::q = new CGI($p);
+    $opts{error_handler}->("setting CGI params ".Dumper($p)) if $opts{debug};
+
+    my @update_uids;
 
     eval {
+      # call app specific request bootstrap handler
+      # which will execute a CGI::OptimalQuery object somehow
+      # and populate $$rec{buf}, $$rec{uids}, $$rec{err_msg}
       $opts{handler}->($rec);
-      if ($$rec{EMAIL}) {
-        foreach my $uid (keys %uids) {
-          if ($$rec{ALERT_MASK} & 1 && $uids{$uids} == 3) {
-            my $editLink = 
-            $emails{$$rec{EMAIL}}{$$rec{OQ_TITLE}}{added} .= "<a href={$uid};
-          }
-          elsif ($$rec{ALERT_MASK} & 2 && $uids{$uids} == 1) {
-            $emails{$$rec{EMAIL}}{$$rec{OQ_TITLE}}{deleted}{$uid};
-          }
-          elsif ($$rec{ALERT_MASK} & 4 && $uids{$uids} > 1) {
-            $emails{$$rec{EMAIL}}{$$rec{OQ_TITLE}}{present}{$uid};
+      $opts{error_handler}->("after OQ execution uids: ".Dumper(\%uids)) if $opts{debug};
+
+      my $total_new = 0;
+      my $total_deleted = 0;
+      my $total_count = 0;
+      while (my ($uid, $status) = each %uids) {
+        if ($status == 1) {
+          $total_deleted++;
+        }
+        else {
+          push @update_uids, $uid;
+          $total_count++;
+          if ($status == 3) {
+            $total_new++;
           }
         }
       }
+      $opts{error_handler}->("total_new: $total_new; total_deleted: $total_deleted; total_count: $total_count") if $opts{debug};
+
+      my $should_send_email = 1 if
+        ! $$rec{is_initial_run} &&
+        ( # alert when records are added
+          ($$rec{ALERT_MASK} & 1 && $total_new > 0) ||
+          # alert when records are deleted
+          ($$rec{ALERT_MASK} & 2 && $total_deleted > 0) ||
+          # alert when records are present
+          ($$rec{ALERT_MASK} & 4 && $total_count > 0)
+        );
+
+      if ($should_send_email) {
+        my %email = (
+          to => $$rec{EMAIL},
+          subject => $$rec{OQ_TITLE},
+          from => $$rec{EMAIL_FROM} || ($ENV{USER}||'root').'@'.($ENV{HOSTNAME}||'localhost'),
+          'Reply-To' => $$rec{REPLY_TO} || $$rec{EMAIL},
+          'content-type' => 'text/html; charset="iso-8859-1"'
+        );
+        $email{subject} .= " ($total_new added)" if $total_new > 0; 
+        $email{body} = 
+"<html>
+<head>
+<title>".escapeHTML($$rec{OQ_TITLE})."</title>
+<style>
+table {
+  border-collapse: collapse;
+  td { padding: 4px; }
+  tr:nth-child(even) { background-color: #eee; }
+}
+</style>
+</head>
+<h2>".escapeHTML($$rec{OQ_TITLE})."</h2>
+<a href=/todo>load current data</a> | <a href=/todo>edit notification settings</a>
+<p>
+Total records in report: $total_count. Since last report, $total_new records were added";
+        $email{body} .= "and $total_deleted were removed" if $total_deleted > 0;
+        $email{body} .= ".
+<p>
+$$rec{buf}
+</body>
+</html>";
+
+        $opts{error_handler}->("email: ".Dumper(\%email)) if $opts{debug};
+        Mail::Sendmail::sendmail(%email) or die "could not send email to: $$rec{EMAIL}";
+      }
     };
     if ($@) {
+      $opts{error_handler}->("Error: $@");
+      $$rec{err_msg} = $@;
+      my %email = (
+        to => $$rec{EMAIL},
+        subject => "Problem with alert: $$rec{OQ_TITLE}",
+        from => $$rec{EMAIL_FROM} || ($ENV{USER}||'root').'@'.($ENV{HOSTNAME}||'localhost'),
+        'Reply-To' => $$rec{REPLY_TO} || $$rec{EMAIL},
+        body => "Your saved search alert encountered the following error:\n\n$$rec{err_msg}\n\nPlease contact your administrator if you are unable to fix the problem."
+      );
+      Mail::Sendmail::sendmail(%email);
     }
 
-    # send emails
-    foreach my $email (keys %emails) {
-      foreach my $oq_title (
+    # update database
+    my $update_uids = join('~', sort @update_uids);
+    $update_uids = undef if $update_uids eq '';
+    $$rec{err_msg} = undef if $$rec{err_msg} eq '';
+    my @binds = ($$rec{err_msg});
+    my $sql = "UPDATE oq_saved_search SET alert_last_dt=DATETIME(), alert_err=?";
+    if ($update_uids ne $$rec{ALERT_UIDS}) {
+      $sql .= ", alert_uids=?";
+      push @binds, $update_uids;
     }
-
-
+    $sql .= " WHERE id=?";
+    push @binds, $$rec{ID};
+    $opts{error_handler}->("SQL: $sql\nBINDS: ".join(',', @binds)) if $opts{debug};
+    my $sth = $dbh->prepare_cached($sql);
+    $sth->execute(@binds);
   }
+
+  $opts{error_handler}->("execute_saved_search_alerts done") if $opts{debug};
 }
 
 

@@ -2,22 +2,37 @@
 
 use strict;
 use FindBin qw($Bin);
-use lib "$Bin/../../lib"; # include project lib
+use lib "$Bin/../lib"; # include project lib
 
 use DBI();
-use CGI::OptimalQuery();
+use CGI::OptimalQuery::SaveSearchTool();
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
+$DEMO::dbh ||= DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
+
+# load/create a coderef of the given perl script
+# not needed if you use perl modules
+my %FUNCS;
+sub getFunc {
+  my ($fn) = @_;
+  if (! exists $FUNCS{$fn}) {
+    open my $fh, "<", $fn or die "can't read file $fn; $!";
+    local $/=undef;
+    my $code = 'sub { '.scalar(<$fh>). ' }';
+    $FUNCS{$fn} = eval $code;
+    die "could not compile $fn; $@" if $@;
+  }
+  return $FUNCS{$fn};
+}
 
 CGI::OptimalQuery::SaveSearchTool::execute_saved_search_alerts(
   # default is shown
   # error_handler => sub { print STDERR @_; },
 
   # if debug is true, no email is sent, emails will be logged to the error_handler
-  # debug => 1,
+  debug => 1,
 
   # database handle
-  dbh => $dbh,
+  dbh => $DEMO::dbh,
 
   # define a handler which is called for each possible alert
   # alerts aren't actually sent until the very end where they are batched
@@ -35,7 +50,7 @@ CGI::OptimalQuery::SaveSearchTool::execute_saved_search_alerts(
     # somehow, execute your OptimalQuery
     # MyApp::Request::handler()
     if ($$o{URI} =~ /(\w+\.pl)$/) {
-      do "$Bin/cgi-bin/$1";
+      getFunc("$Bin/cgi-bin/$1")->(); 
     }
   }
 );

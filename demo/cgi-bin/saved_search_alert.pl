@@ -9,10 +9,10 @@ use CGI::OptimalQuery();
 
 chdir "$Bin/..";
 
-my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
+$DEMO::dbh ||= DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
 
 my %schema = (
-  'dbh' => $dbh,
+  'dbh' => $DEMO::dbh,
   'savedSearchUserID' => 12345,
   'savedSearchAlerts' => 1, 
   'title' => 'The Inventory',

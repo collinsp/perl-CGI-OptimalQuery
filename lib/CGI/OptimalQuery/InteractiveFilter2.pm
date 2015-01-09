@@ -67,8 +67,12 @@ sub output {
         $buf .= " selected" if $c eq $rightSelectedField;
         $buf .= ">".escapeHTML($$o{schema}{select}{$c}[2]);
       }
-      $buf .= "</optgroup></select><input type=text class=rexp value='".escapeHTML($rightExp)."'";
-      $buf .= " style='display: none;'" if $rightSelectedField;
+      $buf .= "</optgroup></select><input type=text class=rexp";
+      if ($rightSelectedField) {
+        $buf .= " style='display: none;'";
+      } else {
+        $buf .= " value='".escapeHTML($rightExp)."'";
+      }
       $buf .= "></div></td><td>";
       if ($numRightParen == 0) {
         $buf .= "<button type=button class=rp>)</button>";

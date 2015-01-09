@@ -34,6 +34,8 @@ CGI::OptimalQuery::SaveSearchTool::execute_saved_search_alerts(
   # database handle
   dbh => $DEMO::dbh,
 
+  base_url => "http://x.sr.unh.edu/OptimalQueryDemo",
+
   # define a handler which is called for each possible alert
   # alerts aren't actually sent until the very end where they are batched
   # and one email is sent for each email address containing one or more alerts
@@ -43,6 +45,7 @@ CGI::OptimalQuery::SaveSearchTool::execute_saved_search_alerts(
 
     # you must set the email address for the $$o{USER_ID} 
     $$o{EMAIL} = 'pmc2@sr.unh.edu';
+
 
     # You may need to login this user first
     # MyApp::login($$o{USERID})

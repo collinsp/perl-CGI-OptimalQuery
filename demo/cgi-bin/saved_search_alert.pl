@@ -12,6 +12,7 @@ chdir "$Bin/..";
 $DEMO::dbh ||= DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
 
 my %schema = (
+debug => 1,
   'dbh' => $DEMO::dbh,
   'savedSearchUserID' => 12345,
   'savedSearchAlerts' => 1, 

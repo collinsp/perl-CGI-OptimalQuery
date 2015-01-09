@@ -158,8 +158,6 @@ our $current_saved_search;
 sub custom_output_handler {
   my ($o) = @_;
 
-  my $buf;
-
   my %opts;
   if (exists $$o{schema}{options}{__PACKAGE__}) {
     %opts = %{$$o{schema}{options}{__PACKAGE__}};
@@ -179,8 +177,24 @@ sub custom_output_handler {
   # which indicates the record is no longer within the report
   my $cnt = 0;
   my $dataTruc = 0;
+  my $row_cnt = 0;
+  my $buf;
+  { my $filter = $o->get_filter();
+    $buf .= "<p><strong>Query: </strong>"
+      .escapeHTML($$o{queryDescr}) if $$o{queryDescr};
+    $buf .= "<p><strong>Filter: </strong>"
+      .escapeHTML($filter) if $filter;
+    $buf .= "<p><table class=OQdata><thead><tr><td></td>";
+    foreach my $colAlias (@{ $o->get_usersel_cols }) {
+      my $colOpts = $$o{schema}{select}{$colAlias}[3];
+      $buf .= "<td>".escapeHTML($o->get_nice_name($colAlias))."</td>";
+    }
+    $buf .= "</tr></thead><tbody>";
+  }
+
   while (my $rec = $o->{sth}->fetchrow_hashref()) {
-print STDERR "got row: ".Dumper($rec)."\n";
+    print STDERR "got row: ".Dumper($rec)."\n";
+
     die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if ++$cnt > $MAX_ROWS;
     $opts{mutateRecord}->($rec) if ref($opts{mutateRecord}) eq 'CODE';
 
@@ -202,6 +216,9 @@ print STDERR "setting: $$rec{U_ID}=>3\n";
              ($$current_saved_search{ALERT_MASK} & 4)
              # output if when rows are added is checked AND this is a new row not seen before
           || ($$current_saved_search{ALERT_MASK} & 1 && $$current_saved_search{uids}{$$rec{U_ID}}==3))) {
+
+      $row_cnt++;
+
       # get open record link
       my $link;
       if (ref($opts{OQdataLCol}) eq 'CODE') {
@@ -219,7 +236,11 @@ print STDERR "setting: $$rec{U_ID}=>3\n";
       # if this record is first time visible
       $buf .= " class=ftv" if $$current_saved_search{uids}{$$rec{U_ID}}==3;
       $buf .= "><td>";
-      $buf .= "<a href='".$link."'>open</a>" if $link;
+      if ($link) {
+        $link = $$current_saved_search{opts}{base_url}.'/'.$link
+          if $link !~ /^https?\:\/\//i;
+        $buf .= "<a href='".escapeHTML($link)."'>open</a>";
+      }
       $buf .= "</td>";
       foreach my $col (@{ $o->get_usersel_cols }) {
         my $val;
@@ -240,29 +261,30 @@ print STDERR "setting: $$rec{U_ID}=>3\n";
 
       $dataTruc = 1 if length($buf) > $TRUNC_REPORT_CHAR_LIMIT;
     }
-    $o->{sth}->finish();
+  }
+  $o->{sth}->finish();
 
-    # if we found rows, encase it in a table with thead
-    if ($buf) {
-      my $buf2 = "<table class=OQdata><thead><tr><td></td>";
-      foreach my $colAlias (@{ $o->get_usersel_cols }) {
-        my $colOpts = $$o{schema}{select}{$colAlias}[3];
-        $buf2 .= "<td>".escapeHTML($o->get_nice_name($colAlias))."</td>";
-      }
-      $buf2 .= "</tr></thead><tbody>\n$buf\n</tbody></table>";
-      $buf2 .= "<p><strong>This report does not show all data found because the report exceeds the maximum limit. Reduce report size by hiding columns, adding additional filters, or only showing new records.</strong>" if $dataTruc;
-      $buf = $buf2;
-    }
+  # if we found rows, encase it in a table with thead
+  if ($row_cnt > 0) {
+    $buf .= "</tbody></table>";
+    $buf .= "<p><strong>This report does not show all data found because the report exceeds the maximum limit. Reduce report size by hiding columns, adding additional filters, or only showing new records.</strong>" if $dataTruc;
+    $$current_saved_search{buf} = $buf;
   }
 
 print STDERR "UIDS: ".Dumper($$current_saved_search{uids});
-  $$current_saved_search{buf} .= $buf;
+  return undef;
 }
 
 sub execute_saved_search_alerts {
   my %opts = @_;
 
-  die "missing handler CODEREF" unless ref($opts{handler}) eq 'CODE';
+  if ($opts{base_url} =~ /^(https?\:\/\/[^\/]+)(.*)/i) {
+    $opts{server_url} = $1;
+    $opts{path_prefix} = $2;
+  } else {
+    die "invalid option base_url";
+  }
+  die "missing option handler" unless ref($opts{handler}) eq 'CODE';
   my $dbh = $opts{dbh} or die "missing dbh";
   $opts{error_handler} ||= sub { print STDERR join(' ', @_)."\n"; };
 
@@ -295,7 +317,12 @@ sub execute_saved_search_alerts {
       WHERE alert_uids = '##NOTPOPULATED##'
       OR (  alert_dow LIKE ?
         AND ? BETWEEN alert_start_hour AND alert_end_hour
-        AND (strftime('%s','now') - strftime('%s',COALESCE(alert_last_dt,'2000-01-01'))) > alert_interval_min
+        AND 
+
+( 1=1 OR
+
+(strftime('%s','now') - strftime('%s',COALESCE(alert_last_dt,'2000-01-01'))) > alert_interval_min
+)
       )
       ORDER BY id");
     
@@ -313,6 +340,7 @@ sub execute_saved_search_alerts {
 
     local $current_saved_search = $rec;
     my %uids = map { $_ => 1 } split /\~/, $$rec{ALERT_UIDS};
+    $$rec{opts} = \%opts;
     $$rec{uids} = \%uids; # contains all the previously seen uids
     $$rec{buf} = ''; # will be populated with a table containing report rows for a simple HTML email
     $$rec{err_msg} = '';
@@ -320,7 +348,7 @@ sub execute_saved_search_alerts {
     $opts{error_handler}->("executing saved search: ".Dumper($rec)) if $opts{debug};
 
     # create CGI query
-    my $p = eval '{'.$$rec{params}.'}'; 
+    my $p = eval '{'.$$rec{PARAMS}.'}'; 
     $p = {} unless ref($p) eq 'HASH';
     $$p{module} = 'CustomOutput'; # this will call our custom_output_handler function
     $$p{page} = 1;
@@ -373,26 +401,57 @@ sub execute_saved_search_alerts {
           'content-type' => 'text/html; charset="iso-8859-1"'
         );
         $email{subject} .= " ($total_new added)" if $total_new > 0; 
+
         $email{body} = 
 "<html>
 <head>
 <title>".escapeHTML($$rec{OQ_TITLE})."</title>
 <style>
-table {
+.OQSSAlert * {
+  font-family: sans-serif;
+}
+.OQSSAlert h2 {
+  margin: 0;
+  font-size: 14px;
+}
+.OQSSAlert table {
   border-collapse: collapse;
-  td { padding: 4px; }
-  tr:nth-child(even) { background-color: #eee; }
+}
+.OQSSAlert thead td {
+  font-weight: bold;
+  color: white;
+  background-color: #999;
+}
+.OQSSAlert td {
+  padding: 4px;
+  border: 1px solid #aaa;
+  font-size: 11px;
+}
+.OQSSAlert .ftv {
+  background-color: #E2FFE2;
+}
+.OQSSAlert p {
+  margin: .5em 0;
+}
+.OQSSAlert .ib {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 6px;
 }
 </style>
 </head>
+<body>
+<div class=OQSSAlert>
 <h2>".escapeHTML($$rec{OQ_TITLE})."</h2>
-<a href=/todo>load current data</a> | <a href=/todo>edit notification settings</a>
-<p>
-Total records in report: $total_count. Since last report, $total_new records were added";
-        $email{body} .= "and $total_deleted were removed" if $total_deleted > 0;
-        $email{body} .= ".
 <p>
 $$rec{buf}
+<p>
+<span class=ib>total: $total_count</span>
+<span class='ftv ib'>added: $total_new</span>
+<span class=ib>removed: $total_deleted</span>
+<p>
+<a href='".escapeHTML("$opts{server_url}$$rec{URI}?OQLoadSavedSearch=$$rec{ID}")."'>current data</a> | <a href=/todo>notification settings</a>
+</div>
 </body>
 </html>";
 

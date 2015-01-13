@@ -39,7 +39,7 @@ body {
   margin: 0;
   background-white;
   font-family: sans-serif;
-  font-size: 10px;
+  font-size: 12px;
 }
 dl {
   margin:0;

@@ -402,8 +402,9 @@ sub create_where {
         $name .= $$i{name}.' ' if exists $$i{name};
       }
     }
-    return { deps=> \@deps, sql => $sql, 
+    my $rv = { deps=> \@deps, sql => $sql, 
              binds => \@binds, name => $name};
+    return $rv;
   };
 
   my %translations = (
@@ -426,7 +427,8 @@ sub create_where {
       my $sql = shift @tmp;
       my $binds = \ @tmp;
       my $name = $$oq{select}{$colAlias}[2];
-      return { colAlias => $colAlias, deps => $deps, sql => $sql, binds => $binds, name => '['.$name.']'};
+      my $rv = { colAlias => $colAlias, deps => $deps, sql => $sql, binds => $binds, name => '['.$name.']'};
+      return $rv;
     },
 
     'bindVal' => sub {
@@ -452,9 +454,7 @@ sub create_where {
       my $rule = shift;
       my @token = @_;
 
-      
-
-      # translate to null / not null?
+      # if this is a comparison to null / not null
       if ($token[2]{sql} eq '?' && $token[2]{binds}[0] eq '') {
         pop @token; # remove the last token
         my $op = $token[1]{sql};
@@ -467,60 +467,84 @@ sub create_where {
         }
       }
 
-      # add some code to support contains operator
-      # basically rewritten as a fuzzy search
-      elsif ($token[1]{name} =~ /contains/) {
-        if (! exists $$oq{select}{$token[0]{colAlias}}[3]{date_format}) {
-          $token[0]{sql} = 'UPPER('.$token[0]{sql}.')';
+      # if we are comparing 2 cols
+      elsif ($token[0]{colAlias} && $token[2]{colAlias}) {
+        my $t0 = $oq->get_col_type($token[0]{colAlias},'filter');
+        my $t1 = $oq->get_col_type($token[2]{colAlias},'filter');
+        if ($t0 ne $t1) {
+          $token[0]{sql} = "TO_CHAR(".$token[0]{sql}.")" unless $t0 eq 'char';
+          $token[2]{sql} = "TO_CHAR(".$token[2]{sql}.")" unless $t1 eq 'char';
         }
-        if ($token[2]{sql} eq '?') {
-          $token[2]{binds}[0] =~ s/\*/\%/g; 
-          $token[2]{binds}[0] = '%'.uc($token[2]{binds}[0]).'%'; 
-          $token[2]{binds}[0] =~ s/\%\%/\%/g;
-        } else {
-          if (! exists $$oq{select}{$token[0]{colAlias}}[3]{date_format}) {
-            $token[2]{sql} = 'UPPER('.$token[2]{sql}.')';
+        if ($token[1]{name} =~ /contains/) {
+          $token[0]{sql} = "UPPER(".$token[0]{sql}.")";
+          $token[2]{sql} = "UPPER(".$token[2]{sql}.")";
+
+          if ($$oq{dbtype} eq 'Oracle' || $$oq{dbtype} eq 'SQLite') {
+            $token[2]{sql} = "'%'||".$token[2]{sql}."||'%'";
+          } else {
+            $token[2]{sql} = "CONCAT('%',".$token[2]{sql}.",'%')";
           }
         }
-      } 
-
-      # if like search convert all * to wildcard %
-      elsif ($token[1]{sql} =~ /like/i && $token[2]{sql} eq '?') {
-        $token[2]{binds}[0] =~ s/\*/\%/g; 
       }
 
-      # if lval is a date and we are doing a like comparison and rval is a value
-      # convert rval to a string using date_format
-      if (exists $$oq{select}{$token[0]{colAlias}}[3]{date_format} &&     
-          $token[1]{sql} =~ /like/i && $token[2]{sql} eq '?') {
-        if ($$oq{dbtype} eq 'Oracle') {
-          $token[0]{sql} = "to_char(".$token[0]{sql}.",'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
-        } elsif ($$oq{dbtype} eq 'mysql') {
-          $token[0]{sql} = "date_format(".$token[0]{sql}.",'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
-        }  
-      }
+      # else we are comparing a column to a value
+      else {
+
+        # add some code to support contains operator
+        # basically rewritten as a fuzzy search
+        if ($token[1]{name} =~ /contains/) {
+          if (! exists $$oq{select}{$token[0]{colAlias}}[3]{date_format}) {
+            $token[0]{sql} = 'UPPER('.$token[0]{sql}.')';
+          }
+          if ($token[2]{sql} eq '?') {
+            $token[2]{binds}[0] =~ s/\*/\%/g; 
+            $token[2]{binds}[0] = '%'.uc($token[2]{binds}[0]).'%'; 
+            $token[2]{binds}[0] =~ s/\%\%/\%/g;
+          } else {
+            if (! exists $$oq{select}{$token[0]{colAlias}}[3]{date_format}) {
+              $token[2]{sql} = 'UPPER('.$token[2]{sql}.')';
+            }
+          }
+        } 
+
+        # if like search convert all * to wildcard %
+        elsif ($token[1]{sql} =~ /like/i && $token[2]{sql} eq '?') {
+          $token[2]{binds}[0] =~ s/\*/\%/g; 
+        }
+
+        # if lval is a date and we are doing a like comparison and rval is a value
+        # convert rval to a string using date_format
+        if (exists $$oq{select}{$token[0]{colAlias}}[3]{date_format} &&     
+            $token[1]{sql} =~ /like/i && $token[2]{sql} eq '?') {
+          if ($$oq{dbtype} eq 'Oracle') {
+            $token[0]{sql} = "to_char(".$token[0]{sql}.",'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
+          } elsif ($$oq{dbtype} eq 'mysql') {
+            $token[0]{sql} = "date_format(".$token[0]{sql}.",'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
+          }  
+        }
      
 
-      # if lval is a date and we are doing a numerical comparison and rval is a value
-      # convert rval to a date using date_format
-      elsif (exists $$oq{select}{$token[0]{colAlias}}[3]{date_format} &&     
-          $token[1]{sql} !~ /like/i && $token[2]{sql} eq '?') {
-        if ($$oq{dbtype} eq 'Oracle') {
-          $token[2]{sql} = "to_date(?,'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
-        } elsif ($$oq{dbtype} eq 'mysql') {
-          $token[2]{sql} = "str_to_date(?,'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
-        }  
-      }
+        # if lval is a date and we are doing a numerical comparison and rval is a value
+        # convert rval to a date using date_format
+        elsif (exists $$oq{select}{$token[0]{colAlias}}[3]{date_format} &&     
+            $token[1]{sql} !~ /like/i && $token[2]{sql} eq '?') {
+          if ($$oq{dbtype} eq 'Oracle') {
+            $token[2]{sql} = "to_date(?,'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
+          } elsif ($$oq{dbtype} eq 'mysql') {
+            $token[2]{sql} = "str_to_date(?,'".$$oq{select}{$token[0]{colAlias}}[3]{date_format}."')";
+          }  
+        }
 
-      # if this is a numerical compare expression and the left side 
-      # is a number force the right side to also be a number
-      elsif ($token[1]{sql} =~ /\=|\<|\>/ &&
-        $oq->get_col_type($token[0]{colAlias},'filter') eq 'num') {
-        my $v = $token[2]{binds}[0];
-        $v =~ s/[^\d\.\-]//g;
-        $v = 0 unless $v =~ /^\-?(\d*\.\d+|\d+)$/;
-        $token[2]{binds}[0] = $v;
-        $token[2]{name} = $v;
+        # if this is a numerical compare expression and the left side 
+        # is a number force the right side to also be a number
+        elsif ($token[1]{sql} =~ /\=|\<|\>/ &&
+          $oq->get_col_type($token[0]{colAlias},'filter') eq 'num') {
+          my $v = $token[2]{binds}[0];
+          $v =~ s/[^\d\.\-]//g;
+          $v = 0 unless $v =~ /^\-?(\d*\.\d+|\d+)$/;
+          $token[2]{binds}[0] = $v;
+          $token[2]{name} = $v;
+        }
       }
 
       # if this field comes from a dep with new_cursor => 1
@@ -1038,6 +1062,7 @@ FROM (
   $where
 ) cnt_query";
     my @binds = (@from_binds, @old_join_binds, @{$c->{where_binds}});
+
     eval {
       ($sth->{count}) = $sth->{oq}->{dbh}->selectrow_array($sql, undef, @binds);
     }; if ($@) {

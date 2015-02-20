@@ -104,7 +104,7 @@ sub on_init {
           push @binds, $val;
         }
         $$o{dbh}->do("INSERT INTO oq_saved_search (".join(',',@cols).") VALUES (".join(',',@vals).")", undef, @binds);
-        $rec{id} ||= $$o{dbh}->last_insert_id();
+        $rec{id} ||= $$o{dbh}->last_insert_id("","","","");
       }
       $$o{output_handler}->(CGI::header('application/json').encode_json({ status => "ok", msg => "search saved successfully", id => $rec{id} }));
     }; if ($@) {

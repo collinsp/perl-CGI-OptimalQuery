@@ -168,6 +168,7 @@ $script
 <input type=hidden name=queryDescr value='".escapeHTML($$o{queryDescr})."'>
 <input type=hidden name=sort value='".escapeHTML($$o{'sort'})."'>
 <input type=hidden name=module value='".escapeHTML($$o{module})."'>
+<input type=hidden name=OQss value='".escapeHTML($$o{q}->param('OQss'))."'>
 <input type=hidden name=on_select value='".escapeHTML($$o{q}->param('on_select'))."'>\n";
   if (ref($$o{schema}{state_params}) eq 'ARRAY') {
     $buf .= "<input type=hidden name='".escapeHTML($_)."' value='"

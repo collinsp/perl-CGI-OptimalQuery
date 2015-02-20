@@ -31,9 +31,11 @@ sub on_init {
       if (ref($params) eq 'HASH') {
         delete $$params{module};
         while (my ($k,$v) = each %$params) { 
-          $$o{q}->param( -name => $k, -value => $v ); 
+          $$o{q}->param( -name => $k, -values => $v ); 
         }
       }
+      # remember saved search ID
+      $$o{q}->param('OQss', $$o{q}->param('OQLoadSavedSearch'));
     }
   }
 }
@@ -49,9 +51,19 @@ sub on_open {
     ORDER BY 2", undef, $$o{schema}{savedSearchUserID},
       $$o{schema}{URI}, $$o{schema}{title});
   my $buf;
+  # must include state params because server code may not run without them defined
+  my $args;
+  if ($$o{schema}{state_params}) {
+    my @args;
+    foreach my $p (@{ $$o{schema}{state_params} }) {
+      my $v = $$o{q}->param($p);
+      push @args, "$p=".$o->escape_uri($v) if $v;
+    }
+    $args = '&'.join('&', @args) if $#args > -1;
+  }
   foreach my $x (@$ar) {
     my ($id, $uri, $user_title) = @$x;
-    $buf .= "<tr><td><a href=$uri?OQLoadSavedSearch=$id>".escapeHTML($user_title)."</a></td><td><button type=button class=OQDeleteSavedSearchBut data-id=$id>x</button></td></tr>";
+    $buf .= "<tr><td><a href='$uri?OQLoadSavedSearch=$id".$args."'>".escapeHTML($user_title)."</a></td><td><button type=button class=OQDeleteSavedSearchBut data-id=$id>x</button></td></tr>";
   }
   if (! $buf) {
     $buf = "<em>none</em>";

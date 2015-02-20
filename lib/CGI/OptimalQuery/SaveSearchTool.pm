@@ -1,9 +1,11 @@
 package CGI::OptimalQuery::SaveSearchTool;
 
 use strict;
+use POSIX qw/strftime/;
 use Data::Dumper;
 use Mail::Sendmail();
 use CGI qw( escapeHTML );
+use JSON::XS;
 
 # specify max character threshold after which report rows are now outputted in email
 my $TRUNC_REPORT_CHAR_LIMIT = 500000;   # ~ .5MB allowed per report
@@ -20,90 +22,96 @@ sub on_init {
   # request to save a search?
   if ($$o{q}->param('OQsaveSearchTitle') ne '') {
 
-    # delete old searches with this user, title, uri
-    $$o{dbh}->do("DELETE FROM oq_saved_search WHERE user_id = ? AND uri = ? AND oq_title = ? AND user_title = ?", undef, $$o{schema}{savedSearchUserID}, $$o{schema}{URI},$$o{schema}{title}, $$o{q}->param('OQsaveSearchTitle'));
+    eval {
 
-    $$o{q}->param('queryDescr', $$o{q}->param('OQsaveSearchTitle'));
-
-    # serialize params
-    my $params;
-    { my %data;
-      foreach my $p (qw( show filter sort page rows_page queryDescr hiddenFilter )) {
-        $data{$p} = $$o{q}->param($p);
+      # serialize params
+      my $params;
+      { my %data;
+        foreach my $p (qw( show filter sort page rows_page queryDescr hiddenFilter )) {
+          $data{$p} = $$o{q}->param($p);
+        }
+        if (ref($$o{schema}{state_params}) eq 'ARRAY') {
+          foreach my $p (@{ $$o{schema}{state_params} }) {
+            my @v = $$o{q}->param($p);
+            $data{$p} = \@v;
+          }
+        }
+  
+        local $Data::Dumper::Indent = 0;
+        local $Data::Dumper::Quotekeys = 0;
+        local $Data::Dumper::Pair = '=>';
+        local $Data::Dumper::Sortkeys = 1;
+        $params = Dumper(\%data);
+        $params =~ s/^[^\{]+\{//;
+        $params =~ s/\}\;\s*$//;
       }
-      if (ref($$o{schema}{state_params}) eq 'ARRAY') {
-        foreach my $p (@{ $$o{schema}{state_params} }) {
-          my @v = $$o{q}->param($p);
-          $data{$p} = \@v;
+  
+      $$o{q}->param('queryDescr', $$o{q}->param('OQsaveSearchTitle'));
+  
+      my %rec = (
+        user_id => $$o{schema}{savedSearchUserID},
+        uri => $$o{schema}{URI},
+        oq_title => $$o{schema}{title},
+        user_title => $$o{q}->param('OQsaveSearchTitle'),
+        params => $params,
+        alert_mask => $$o{q}->param('alert_mask') || 0
+      );
+      if ($rec{alert_mask}) {
+        $rec{alert_interval_min} = $$o{q}->param('alert_interval_min');
+        $rec{alert_dow} = $$o{q}->param('alert_dow');
+        $rec{alert_start_hour} = $$o{q}->param('alert_start_hour');
+        $rec{alert_end_hour} = $$o{q}->param('alert_end_hour');
+  
+        # get starting alert_uids
+        my @uids;
+        my $sth = $$o{oq}->prepare(
+          show   => ['UID'],
+          filter => scalar($$o{q}->param('filter')),
+          hiddenFilter => scalar($$o{q}->param('hiddenFilter'))
+        );
+
+        $sth->execute(limit => [1, $MAX_ROWS + 1]);
+        while (my $h = $sth->fetchrow_hashref()) {
+          push @uids, $$h{U_ID};
+        }
+        die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if scalar(@uids) > $MAX_ROWS;
+        $rec{alert_uids} = join('~', @uids);
+        $rec{alert_uids} = undef if $rec{alert_uids} eq '';
+      }
+  
+      # save saved search to db
+      my $is_update=0;
+      if ($$o{q}->param('OQss') ne '') {
+        my $id = scalar($$o{q}->param('OQss'));
+        ($is_update) = $$o{dbh}->selectrow_array("SELECT 1 FROM oq_saved_search WHERE id=? AND user_id=?", undef, $id, $rec{user_id});
+        if ($is_update) {
+          my (@cols,@binds);
+          while (my ($col,$val) = each %rec) {
+            push @cols, "$col=?";
+            push @binds, $val;
+          }
+          push @binds, $id;
+          $$o{dbh}->do("UPDATE oq_saved_search SET ".join(',', @cols)." WHERE id=?", undef, @binds);
+          $rec{id} = $id;
         }
       }
-
-      local $Data::Dumper::Indent = 0;
-      local $Data::Dumper::Quotekeys = 0;
-      local $Data::Dumper::Pair = '=>';
-      local $Data::Dumper::Sortkeys = 1;
-      $params = Dumper(\%data);
-      $params =~ s/^[^\{]+\{//;
-      $params =~ s/\}\;\s*$//;
+      if (! $is_update) {
+        ($rec{id}) = $$o{dbh}->selectrow_array("SELECT s_oq_saved_search.nextval FROM dual") if $$o{dbh}{Driver}{Name} eq 'Oracle';
+        my (@cols,@vals,@binds);
+        while (my ($col,$val) = each %rec) {
+          push @cols, $col;
+          push @vals, '?';
+          push @binds, $val;
+        }
+        $$o{dbh}->do("INSERT INTO oq_saved_search (".join(',',@cols).") VALUES (".join(',',@vals).")", undef, @binds);
+        $rec{id} ||= $$o{dbh}->last_insert_id();
+      }
+      $$o{output_handler}->(CGI::header('application/json').encode_json({ status => "ok", msg => "search saved successfully", id => $rec{id} }));
+    }; if ($@) {
+      my $err = $@;
+      $err =~ s/\ at\ .*//;
+      $$o{output_handler}->(CGI::header('application/json').encode_json({ status => "error", msg => $err }));
     }
-
-    my (@cols,@vals,@binds);
-
-    if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
-      push @cols, "id";
-      push @vals, 's_oq_saved_search.nextval';
-    }
-    push @cols, "user_id";
-    push @vals, '?';
-    push @binds, $$o{schema}{savedSearchUserID};
-
-    push @cols, "uri";
-    push @vals, '?';
-    push @binds, $$o{schema}{URI};
-
-    push @cols, "oq_title";
-    push @vals, '?';
-    push @binds, $$o{schema}{title};
-
-    push @cols, "user_title";
-    push @vals, '?';
-    push @binds, scalar($$o{q}->param('OQsaveSearchTitle'));
-
-    push @cols, "params";
-    push @vals, '?';
-    push @binds, $params;
-  
-    push @cols, "alert_mask";
-    push @vals, '?';
-    push @binds, scalar($$o{q}->param('alert_mask')) || 0;
-
-    # if user requested to be notified on new matches
-    if ($$o{q}->param('alert_mask') > 0) {
-      push @cols, "alert_interval_min";
-      push @vals, '?';
-      push @binds, scalar($$o{q}->param('alert_interval_min'));
-
-      push @cols, "alert_dow";
-      push @vals, '?';
-      push @binds, scalar($$o{q}->param('alert_dow'));
-
-      push @cols, "alert_start_hour";
-      push @vals, '?';
-      push @binds, scalar($$o{q}->param('alert_start_hour'));
-
-      push @cols, "alert_end_hour";
-      push @vals, '?';
-      push @binds, scalar($$o{q}->param('alert_end_hour'));
-
-      push @cols, "alert_uids";
-      push @vals, '?';
-      push @binds, "##NOTPOPULATED##";
-    }
-
-    my $sql = "INSERT INTO oq_saved_search (".join(',',@cols).") VALUES (".join(',', @vals).")";
-    $$o{dbh}->do($sql, undef, @binds);
-
-    $$o{output_handler}->(CGI::header('text/html')."report saved");
     return undef;
   }
 }
@@ -111,35 +119,74 @@ sub on_init {
 
 sub on_open {
   my ($o) = @_;
-  my $buf = "<label>name <input type=text id=OQsaveSearchTitle></label>";
-  $buf .= "
-<fieldset id=OQSaveReportEmailAlertOpts>
-  <legend><label class=ckbox><input type=checkbox id=OQalertenabled> send email alert</label></legend>
+  my $buf;
+
+  # if saved search alerts are enabled
+  if ($$o{schema}{savedSearchAlerts}) {
+    my $rec;
+    if ($$o{q}->param('OQss') ne '') {
+      $rec = $$o{dbh}->selectrow_hashref("SELECT USER_TITLE,ALERT_MASK,ALERT_INTERVAL_MIN,ALERT_DOW,ALERT_START_HOUR,ALERT_END_HOUR FROM oq_saved_search WHERE id=? AND user_id=?", undef, scalar($$o{q}->param('OQss')), $$o{schema}{savedSearchUserID});
+    }
+    $rec ||= {};
+    my $alerts_enabled = ($$rec{ALERT_MASK} > 0) ? 1 : 0;
+    $$rec{ALERT_MASK} ||= 1;
+    $$rec{ALERT_INTERVAL_MIN} ||= 1440;
+    $$rec{ALERT_DOW} ||= '12345';
+    $$rec{ALERT_START_HOUR} ||= 8;
+    $$rec{ALERT_END_HOUR} ||= 17;
+
+    if ($$rec{ALERT_START_HOUR} > 12) {
+      $$rec{ALERT_START_HOUR} = ($$rec{ALERT_START_HOUR} - 12).'PM';
+    } else {
+      $$rec{ALERT_START_HOUR} .= 'AM';
+    }
+    if ($$rec{ALERT_END_HOUR} > 12) {
+      $$rec{ALERT_END_HOUR} = ($$rec{ALERT_END_HOUR} - 12).'PM';
+    } else {
+      $$rec{ALERT_END_HOUR} .= 'AM';
+    }
+
+    $buf .= "
+<label>name <input type=text id=OQsaveSearchTitle value='".$o->escape_html($$rec{USER_TITLE})."'></label>
+<fieldset id=OQSaveReportEmailAlertOpts".($alerts_enabled?' class=opened':'').">
+  <legend><label class=ckbox><input type=checkbox id=OQalertenabled".($alerts_enabled?' checked':'')."> send email alert</label></legend>
 
   <p>
   <label>when records are:</label>
-  <label><input type=checkbox name=OQalert_mask value=1 checked> added</label>
-  <label><input type=checkbox name=OQalert_mask value=2> removed</label>
-  <label><input type=checkbox name=OQalert_mask value=4> present</label>
+  <label><input type=checkbox name=OQalert_mask value=1".(($$rec{ALERT_MASK} & 1)?' checked':'')."> added</label>
+  <label><input type=checkbox name=OQalert_mask value=2".(($$rec{ALERT_MASK} & 2)?' checked':'')."> removed</label>
+  <label><input type=checkbox name=OQalert_mask value=4".(($$rec{ALERT_MASK} & 4)?' checked':'')."> present</label>
     
   <p>
-  <label>check every: <input type=text id=OQalert_interval_hour value=3 size=3 maxlength=4> hours</label></label>
+  <label>check every: <input type=text id=OQalert_interval_min size=4 maxlength=6 value='".$o->escape_html($$rec{ALERT_INTERVAL_MIN})."'> minutes</label>
+  <small>(1440 min per day)</small>
 
   <p>
   <label title='Specify which days to send the alert.'>on days:</label>
-  <label class=ckbox title=Sunday><input type=checkbox class=OQalert_dow value=0>S</label>
-  <label class=ckbox title=Monday><input type=checkbox class=OQalert_dow value=1 checked>M</label>
-  <label class=ckbox title=Tuesday><input type=checkbox class=OQalert_dow value=2 checked>T</label>
-  <label class=ckbox title=Wednesday><input type=checkbox class=OQalert_dow value=3 checked>W</label>
-  <label class=ckbox title=Thursday><input type=checkbox class=OQalert_dow value=4 checked>T</label>
-  <label class=ckbox title=Friday><input type=checkbox class=OQalert_dow value=5 checked>F</label>
-  <label class=ckbox title=Saturday><input type=checkbox class=OQalert_dow value=6>S</label>
+  <label class=ckbox title=Sunday><input type=checkbox class=OQalert_dow value=0".   ($$rec{ALERT_DOW}=~/0/?' checked':'').">S</label>
+  <label class=ckbox title=Monday><input type=checkbox class=OQalert_dow value=1".   ($$rec{ALERT_DOW}=~/1/?' checked':'').">M</label>
+  <label class=ckbox title=Tuesday><input type=checkbox class=OQalert_dow value=2".  ($$rec{ALERT_DOW}=~/2/?' checked':'').">T</label>
+  <label class=ckbox title=Wednesday><input type=checkbox class=OQalert_dow value=3".($$rec{ALERT_DOW}=~/3/?' checked':'').">W</label>
+  <label class=ckbox title=Thursday><input type=checkbox class=OQalert_dow value=4". ($$rec{ALERT_DOW}=~/4/?' checked':'').">T</label>
+  <label class=ckbox title=Friday><input type=checkbox class=OQalert_dow value=5".   ($$rec{ALERT_DOW}=~/5/?' checked':'').">F</label>
+  <label class=ckbox title=Saturday><input type=checkbox class=OQalert_dow value=6". ($$rec{ALERT_DOW}=~/6/?' checked':'').">S</label>
 
   <p>
-  <label title='Specify start hour to sent an alert.'>from: <input type=text value='8AM' size=4 maxlength=4 id=OQalert_start_hour placeholder=8AM></label> <label>to: <input type=text value='5PM' size=4 maxlength=4 id=OQalert_end_hour placeholder=5PM></label>
-  <p><strong>Notice:</strong> This tool sends automatic alerts over insecure email. By creating an alert you acknowledge that the fields in the report will never be used to store sensitive data.</strong>
-</fieldset>" if $$o{schema}{savedSearchAlerts};
-  $buf .= "<p><button type=button class=OQSaveReportBut>save</button>";
+  <label title='Specify start hour to sent an alert.'>from: <input type=text value='".$o->escape_html($$rec{ALERT_START_HOUR})."' size=4 maxlength=4 id=OQalert_start_hour placeholder=8AM></label> <label>to: <input type=text value='".$o->escape_html($$rec{ALERT_END_HOUR})."' size=4 maxlength=4 id=OQalert_end_hour placeholder=5PM></label>
+  <p><strong>Notice:</strong> This tool sends automatic alerts over insecure email. By creating an alert you acknowledge that the fields in the report will never contain sensitive data. Alerts are automatically disabled when the count exceeds $MAX_ROWS.</strong>
+</fieldset>
+<p><button type=button class=OQSaveReportBut>save</button>";
+  }
+  else {
+    my $rec;
+    if ($$o{q}->param('OQss') ne '') {
+      $rec = $$o{dbh}->selectrow_hashref("SELECT USER_TITLE FROM oq_saved_search WHERE id=? AND user_id=?", undef, scalar($$o{q}->param('OQss')), $$o{schema}{savedSearchUserID});
+    }
+    $rec ||= {};
+    $buf .= "
+<label>name <input type=text id=OQsaveSearchTitle value='".$o->escape_html($$rec{USER_TITLE})."'></label>
+<p><button type=button class=OQSaveReportBut>save</button>";
+  }
   return $buf;
 }
 
@@ -154,9 +201,15 @@ sub activate {
 
 
 # this function is called from a cron to help execute saved searches that have alerts that need to be checked
+# Note: this custom output handler does not print anything as normal output handlers do.
+# This output handler insteads updates the $current_saved_search
+# it discovers which uids have been added, deleted, or are still present for a saved search.
+# this information is then used by the [arent caller (execute_saved_search_alerts) to send out alert emails
 our $current_saved_search;
 sub custom_output_handler {
   my ($o) = @_;
+  # verify that a proper email_to was defined
+  die "missing email_to" if $$current_saved_search{email_to} eq '';
 
   my %opts;
   if (exists $$o{schema}{options}{__PACKAGE__}) {
@@ -192,26 +245,32 @@ sub custom_output_handler {
     $buf .= "</tr></thead><tbody>";
   }
 
-  while (my $rec = $o->{sth}->fetchrow_hashref()) {
-    print STDERR "got row: ".Dumper($rec)."\n";
+  # remember state param vals that were used so we can provide a link to view the live data
+  if ($$o{schema}{state_params}) {
+    my $args;
+    foreach my $p (@{ $$o{schema}{state_params} }) {
+      my $v = $$o{q}->param($p);
+      $args .= '&'.$p.'='.$o->escape_uri($v) if $v;
+    }
+    $$current_saved_search{state_param_args} = $args;
+  }
 
+  while (my $rec = $o->{sth}->fetchrow_hashref()) {
     die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if ++$cnt > $MAX_ROWS;
     $opts{mutateRecord}->($rec) if ref($opts{mutateRecord}) eq 'CODE';
 
     # if this record has been seen before, mark it with a '2'
     if (exists $$current_saved_search{uids}{$$rec{U_ID}}) {
       $$current_saved_search{uids}{$$rec{U_ID}}=2; 
-print STDERR "setting: $$rec{U_ID}=>2\n";
     }
 
     # if this record hasn't been seen before, mark it with a '3'
     else {
       $$current_saved_search{uids}{$$rec{U_ID}}=3; 
-print STDERR "setting: $$rec{U_ID}=>3\n";
     }
 
     # if we need to output report
-    if (! $$current_saved_search{is_initial_run} && ! $dataTruc && (
+    if (! $dataTruc && (
              # output if when rows are present is checked
              ($$current_saved_search{ALERT_MASK} & 4)
              # output if when rows are added is checked AND this is a new row not seen before
@@ -271,12 +330,20 @@ print STDERR "setting: $$rec{U_ID}=>3\n";
     $$current_saved_search{buf} = $buf;
   }
 
-print STDERR "UIDS: ".Dumper($$current_saved_search{uids});
+
   return undef;
+}
+
+
+sub sendmail_handler {
+  my %email = @_;
+  $email{from} ||= ($ENV{USER}||'root').'@'.($ENV{HOSTNAME}||'localhost');
+  return Mail::Sendmail::sendmail(%email);
 }
 
 sub execute_saved_search_alerts {
   my %opts = @_;
+  my $sendmail_handler = $opts{sendmail_handler} ||= \&sendmail_handler;
 
   if ($opts{base_url} =~ /^(https?\:\/\/[^\/]+)(.*)/i) {
     $opts{server_url} = $1;
@@ -286,7 +353,10 @@ sub execute_saved_search_alerts {
   }
   die "missing option handler" unless ref($opts{handler}) eq 'CODE';
   my $dbh = $opts{dbh} or die "missing dbh";
-  $opts{error_handler} ||= sub { print STDERR join(' ', @_)."\n"; };
+  $opts{error_handler} ||= sub {
+    my $dt = strftime "%F %T", localtime $^T;
+    print STDERR join(' ', $dt, @_)."\n";
+  };
 
   $opts{error_handler}->("execute_saved_search_alerts started") if $opts{debug};
 
@@ -310,29 +380,41 @@ sub execute_saved_search_alerts {
   # find all saved searches that need to be checked
   my @recs;
   { local $$dbh{FetchHashKeyName} = 'NAME_uc';
-
-    my $sth = $dbh->prepare("
-      SELECT *
-      FROM oq_saved_search
-      WHERE alert_uids = '##NOTPOPULATED##'
-      OR (  alert_dow LIKE ?
-        AND ? BETWEEN alert_start_hour AND alert_end_hour
-        AND 
-
-( 1=1 OR
-
-(strftime('%s','now') - strftime('%s',COALESCE(alert_last_dt,'2000-01-01'))) > alert_interval_min
-)
-      )
-      ORDER BY id");
-    
     my @binds = ('%'.$dow.'%', $hour);
-    $opts{error_handler}->("search for saved searches that need checked. BINDS: ".join(',', @binds)) if $opts{debug};
+    my $sql = "
+SELECT *
+FROM oq_saved_search
+WHERE alert_dow LIKE ?
+AND ? BETWEEN alert_start_hour AND alert_end_hour";
+
+    # only select if interval has been exceeded
+    if ($$dbh{Driver}{Name} eq 'Oracle') {
+      $sql .= "\nAND ((SYSDATE - alert_last_dt) * 24 * 60) > alert_interval_min";
+    }
+    elsif ($$dbh{Driver}{Name} eq 'SQLite') {
+      $sql .= "\nAND (strftime('%s','now') - strftime('%s',COALESCE(alert_last_dt,'2000-01-01'))) > alert_interval_min";
+    }
+    elsif ($$dbh{Driver}{Name} eq 'mysql') {
+      $sql .= "\nAND alert_last_dt <= DATE_SUB(NOW(), INTERVAL alert_interval_min MINUTE)";
+    }
+    elsif ($$dbh{Driver}{Name} eq 'Pg') {
+      $sql .= "\nAND ((CURRENT_TIMESTAMP - alert_last_dt) * 24 * 60) > alert_interval_min";
+    }
+    elsif ($$dbh{Driver}{Name} eq 'Microsoft SQL Server') {
+      $sql .= "\nAND DATEADD(minute, alert_interval_min, alert_last_dt) < CURRENT_TIMESTAMP";
+    }
+    else {
+      die "Driver: $$dbh{Driver}{Name} not yet supported. Please add support for this database";
+    }
+    $sql .= "\nORDER BY id";
+    my $sth = $dbh->prepare($sql);
+    
+    #$opts{error_handler}->("search for saved searches that need checked. BINDS: ".join(',', @binds)) if $opts{debug};
     $sth->execute(@binds);
     while (my $h = $sth->fetchrow_hashref()) { push @recs, $h; }
   }
 
-  $opts{error_handler}->("found ".scalar(@recs)." saved searches to execute") if $opts{debug};
+  #$opts{error_handler}->("found ".scalar(@recs)." saved searches to execute") if $opts{debug};
 
   # for each saved search that has alerts which need to be checked
   while ($#recs > -1) {
@@ -344,27 +426,70 @@ sub execute_saved_search_alerts {
     $$rec{uids} = \%uids; # contains all the previously seen uids
     $$rec{buf} = ''; # will be populated with a table containing report rows for a simple HTML email
     $$rec{err_msg} = '';
-    $$rec{is_initial_run} = 1 if $$rec{ALERT_UIDS} eq '##NOTPOPULATED##';
-    $opts{error_handler}->("executing saved search: ".Dumper($rec)) if $opts{debug};
+    $opts{error_handler}->("executing saved search: $$rec{ID}") if $opts{debug};
 
-    # create CGI query
-    my $p = eval '{'.$$rec{PARAMS}.'}'; 
-    $p = {} unless ref($p) eq 'HASH';
-    $$p{module} = 'CustomOutput'; # this will call our custom_output_handler function
-    $$p{page} = 1;
-    $$p{rows_page} = $MAX_ROWS + 1; # one more to detect overflow
-    $CGI::OptimalQuery::q = new CGI($p);
-    $opts{error_handler}->("setting CGI params ".Dumper($p)) if $opts{debug};
+
+
+    # configure CGI environment
+    local %ENV;
+
+    # construct a query string
+    { my $p = eval '{'.$$rec{PARAMS}.'}'; 
+      $p = {} unless ref($p) eq 'HASH';
+      $$p{module} = 'CustomOutput'; # this will call our custom_output_handler function
+      $$p{page} = 1;
+      $$p{rows_page} = $MAX_ROWS + 1; # one more to detect overflow
+      my @args;
+      while (my ($k,$v) = each %$p) {
+        if (ref($v) eq 'ARRAY') {
+          foreach my $v2 (@$v) {
+            push @args, "$k=".CGI::escape($v2);
+          }
+        } else {
+          push @args, "$k=".CGI::escape($v);
+        }
+      }
+      $ENV{QUERY_STRING} = join('&', @args);
+    }
+    $ENV{REQUEST_METHOD} ||= 'GET';
+    $ENV{REMOTE_ADDR} ||= '127.0.0.1';
+    $ENV{SCRIPT_URL} = $$rec{URI};
+    $ENV{REQUEST_URI} = $$rec{URI};
+    $ENV{REQUEST_URI} .= '?'.$ENV{QUERY_STRING} if $ENV{QUERY_STRING};
+    $ENV{HTTP_HOST} ||= ($opts{base_url} =~ /https?\:\/\/([^\/]+)/) ? $1 : 'localhost';
+    $ENV{SERVER_NAME} ||= $ENV{HTTP_HOST};
+    $ENV{SCRIPT_URI} = $opts{base_url}.$ENV{REQUEST_URI};
+
+    # call app specific request bootstrap handler
+    # which will execute a CGI::OptimalQuery object somehow
+    # and populate $$rec{buf}, $$rec{uids}, $$rec{err_msg}
+    eval {
+      $opts{handler}->($rec);
+      die "email_to not defined" if $$rec{email_to} eq ''; 
+      #$opts{error_handler}->("after OQ execution uids: ".Dumper(\%uids)) if $opts{debug};
+    };
+    if ($@) {
+      $$rec{err_msg} = $@;
+      $$rec{err_msg} =~ s/\ at\ .*//;
+    }
 
     my @update_uids;
+    # if there was an error processing saved search, send user an email
+    if ($$rec{err_msg}) {
+      $opts{error_handler}->("Error: $@\n\nsaved search:\n".Dumper($rec)."\n\nENV:\n".Dumper(\%ENV)."\n\n");
+      if ($$rec{email_to}) {
+        my %email = (
+         to => $$rec{email_to},
+          from => $$rec{email_from} || $opts{email_from},
+          'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
+          subject => "Problem with email alert: $$rec{OQ_TITLE}",
+          body => "Your saved search alert encountered the following error:\n\n$$rec{err_msg}\n\nPlease contact your administrator if you are unable to fix the problem."
+        );
+        $sendmail_handler->(%email) or die "could not send email to: $$rec{email_to}";
+      }
+    }
 
-    eval {
-      # call app specific request bootstrap handler
-      # which will execute a CGI::OptimalQuery object somehow
-      # and populate $$rec{buf}, $$rec{uids}, $$rec{err_msg}
-      $opts{handler}->($rec);
-      $opts{error_handler}->("after OQ execution uids: ".Dumper(\%uids)) if $opts{debug};
-
+    else {
       my $total_new = 0;
       my $total_deleted = 0;
       my $total_count = 0;
@@ -380,10 +505,9 @@ sub execute_saved_search_alerts {
           }
         }
       }
-      $opts{error_handler}->("total_new: $total_new; total_deleted: $total_deleted; total_count: $total_count") if $opts{debug};
+      #$opts{error_handler}->("total_new: $total_new; total_deleted: $total_deleted; total_count: $total_count") if $opts{debug};
 
       my $should_send_email = 1 if
-        ! $$rec{is_initial_run} &&
         ( # alert when records are added
           ($$rec{ALERT_MASK} & 1 && $total_new > 0) ||
           # alert when records are deleted
@@ -394,10 +518,10 @@ sub execute_saved_search_alerts {
 
       if ($should_send_email) {
         my %email = (
-          to => $$rec{EMAIL},
+          to => $$rec{email_to},
+          from => $$rec{email_from} || $opts{email_from},
+          'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
           subject => $$rec{OQ_TITLE},
-          from => $$rec{EMAIL_FROM} || ($ENV{USER}||'root').'@'.($ENV{HOSTNAME}||'localhost'),
-          'Reply-To' => $$rec{REPLY_TO} || $$rec{EMAIL},
           'content-type' => 'text/html; charset="iso-8859-1"'
         );
         $email{subject} .= " ($total_new added)" if $total_new > 0; 
@@ -450,26 +574,14 @@ $$rec{buf}
 <span class='ftv ib'>added: $total_new</span>
 <span class=ib>removed: $total_deleted</span>
 <p>
-<a href='".escapeHTML("$opts{server_url}$$rec{URI}?OQLoadSavedSearch=$$rec{ID}")."'>current data</a> | <a href=/todo>notification settings</a>
+<a href='".escapeHTML("$ENV{REQUEST_URI}?OQLoadSavedSearch=$$rec{ID}".$$rec{state_param_args})."'>load report</a>
 </div>
 </body>
 </html>";
 
-        $opts{error_handler}->("email: ".Dumper(\%email)) if $opts{debug};
-        Mail::Sendmail::sendmail(%email) or die "could not send email to: $$rec{EMAIL}";
+        $opts{error_handler}->("sending email to: $email{to}; subject: $email{subject}") if $opts{debug};
+        $sendmail_handler->(%email) or die "could not send email to: $$rec{email_to}";
       }
-    };
-    if ($@) {
-      $opts{error_handler}->("Error: $@");
-      $$rec{err_msg} = $@;
-      my %email = (
-        to => $$rec{EMAIL},
-        subject => "Problem with alert: $$rec{OQ_TITLE}",
-        from => $$rec{EMAIL_FROM} || ($ENV{USER}||'root').'@'.($ENV{HOSTNAME}||'localhost'),
-        'Reply-To' => $$rec{REPLY_TO} || $$rec{EMAIL},
-        body => "Your saved search alert encountered the following error:\n\n$$rec{err_msg}\n\nPlease contact your administrator if you are unable to fix the problem."
-      );
-      Mail::Sendmail::sendmail(%email);
     }
 
     # update database
@@ -477,14 +589,27 @@ $$rec{buf}
     $update_uids = undef if $update_uids eq '';
     $$rec{err_msg} = undef if $$rec{err_msg} eq '';
     my @binds = ($$rec{err_msg});
-    my $sql = "UPDATE oq_saved_search SET alert_last_dt=DATETIME(), alert_err=?";
+    my $now;
+    if ($$dbh{Driver}{Name} eq 'Oracle') {
+      $now = 'SYSDATE';
+    } elsif ($$dbh{Driver}{Name} eq 'SQLite') {
+      $now = 'DATETIME()';
+    } elsif ($$dbh{Driver}{Name} eq 'mysql') {
+      $now = 'NOW()';
+    } elsif ($$dbh{Driver}{Name} eq 'Pg' || $$dbh{Driver}{Name} eq 'Microsoft SQL Server') {
+      $now = 'CURRENT_TIMESTAMP';
+    } else {
+      die "Driver: $$dbh{Driver}{Name} not yet supported. Please add support for this database";
+    }
+
+    my $sql = "UPDATE oq_saved_search SET alert_last_dt=$now, alert_err=?";
     if ($update_uids ne $$rec{ALERT_UIDS}) {
       $sql .= ", alert_uids=?";
       push @binds, $update_uids;
     }
     $sql .= " WHERE id=?";
     push @binds, $$rec{ID};
-    $opts{error_handler}->("SQL: $sql\nBINDS: ".join(',', @binds)) if $opts{debug};
+    #$opts{error_handler}->("SQL: $sql\nBINDS: ".join(',', @binds)) if $opts{debug};
     my $sth = $dbh->prepare_cached($sql);
     $sth->execute(@binds);
   }
@@ -493,4 +618,31 @@ $$rec{buf}
 }
 
 
+# helper function to execute a script. called from with execute_saved_search_alerts from perl script
+my %COMPILED_FUNCS;
+sub execute_script {
+  my ($fn) = @_;
+  my ($fn) = @_;
+  if (! exists $COMPILED_FUNCS{$fn}) {
+    open my $fh, "<", $fn or die "can't read file $fn; $!";
+    local $/=undef;
+    my $code = 'sub { '.scalar(<$fh>). ' }';
+    $COMPILED_FUNCS{$fn} = eval $code;
+    die "could not compile $fn; $@" if $@;
+  }
+  $COMPILED_FUNCS{$fn}->();
+  return undef;
+}
+
+sub execute_handler {
+  my ($pack, $func) = @_;
+  $func ||= 'handler';
+  my $rv = eval "require $pack";
+  die "NOT_FOUND - $@" if $@ =~ /Can\'t locate/;
+  die "COMPILE_ERROR - $@" if $@;
+  die "COMPILE_ERROR - module must end with true value" unless $rv == 1;
+  my $codeRef = $pack->can($func);
+  die "MISSING_HANDLER - could not find ".$pack.'::'.$func unless $codeRef;
+  return $codeRef->();
+}
 1;

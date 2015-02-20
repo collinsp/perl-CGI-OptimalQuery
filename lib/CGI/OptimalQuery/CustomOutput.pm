@@ -10,7 +10,6 @@ our $custom_output_handler;
 
 sub output {
   my $o = shift;
-print STDERR "OUTPUT detected\n";
   my $codeRef = $$o{custom_output_handler} || $custom_output_handler;
   $codeRef->($o) if $codeRef;
 }

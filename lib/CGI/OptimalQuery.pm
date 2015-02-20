@@ -439,7 +439,7 @@ InteractiveQuery can optionally save searches to a database so users can revisit
 
 =item B<< savedSearchAlerts => 0 | 1 >>
 
-If savedSearchUserID, setting savedSearchAlerts to 1 will enhance Optimal Query to optionally allow users to configure saved searches to alert them when records are added, removed, or are present. See the "Saved Search Alerts" section for additional details on configuring this feature.
+If savedSearchUserID, is defined, setting savedSearchAlerts to 1 will enhance dialogs to optionally allow users to configure saved searches to alert them when records are added, removed, or are present. See the "Saved Search Alerts" section for additional details on configuring this feature.
 
 =item B<< sort => "[COLALIAS1] DESC, [COLALIAS2]" >>
 
@@ -659,7 +659,63 @@ Use CSS to stylize the output.
 
 Saved search alerts enhance Optimal Query to optionally allow users to configure saved searches to alert them when records are added, removed, or are present. To use this feature, follow the instructions in the "SAVED SEARCHES" section. You also need to make sure you set savedSearchAlerts to 1 in your schema if the current user is allowed to configure alerts.
 
-Lastly, you need to create a cron that will execute your OptimalQuery. You can execute the cron as frequently as you like. Every 15 minutes is a good default. Here's an example:
+Lastly, you need to create a cron that will execute your OptimalQuery.
+
+=head1 SAVED SEARCH ALERTS CRON EXAMPLE
+
+
+    #!/usr/bin/perl
+
+    use strict;
+    use FindBin qw($Bin);
+    use lib "$Bin/../lib"; # include project lib
+    use DBI();
+    use CGI::OptimalQuery::SaveSearchTool();
+
+    # connect to your database
+    $APP::dbh ||= DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, PrintError => 1 });
+
+    CGI::OptimalQuery::SaveSearchTool::execute_saved_search_alerts(
+      # default is shown
+      # error_handler => sub { print STDERR @_; },
+
+      # if debug is true, no email is sent, emails will be logged to the error_handler
+      debug => 1,
+
+      # database handle
+      dbh => $APP::dbh,
+
+      base_url => "http://name.com/",
+
+      email_from => 'noreply@sr.unh.edu',
+
+      # define a handler which is called for each possible alert
+      # alerts aren't actually sent until the very end where they are batched
+      # and one email is sent for each email address containing one or more alerts
+      handler => sub {
+        # $o contains all the fields defined in the oq_saved_search rec
+        my ($o) = @_;
+
+        # you must set the email address for the search search owner id: $$o{USER_ID} 
+        $$o{email_to} = 'user_email@email.com';
+
+        # configure your application ENV
+        # local $APP::q = new CGI();
+        # local $APP::usr_id = $$o{USER_ID};
+        # local %APP::data = ();
+
+        # helper function to execute a perl module handler (will dynamically load module string and execute handler function)
+        #if ($$o{URI} =~ /(\w+)\.pm$/) {
+        #  CGI::OptimalQuery::SaveSearchTool::execute_handler("App::Applet::$1");
+        #}
+
+        # helper function to execute a perl script (will auto compile and cache a function)
+        if ($$o{URI} =~ /(\w+\.pl)$/) {
+          CGI::OptimalQuery::SaveSearchTool::execute_script("$Bin/cgi-bin/$1");
+        }
+      }
+    );
+
 
 =head1 FILTER GRAMMAR
 

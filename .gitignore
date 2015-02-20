@@ -7,3 +7,4 @@ demo/db/*
 *.bak
 /unittestsetup.sh
 /CGI-OptimalQuery*
+/MYMETA.*

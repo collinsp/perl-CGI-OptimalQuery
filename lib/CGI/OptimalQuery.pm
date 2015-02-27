@@ -329,6 +329,9 @@ The following KEY/VALUES below describe OPTIONS used by the joins configuration.
 =item B<< new_cursor => 1 >>
 
 tells OptimalQuery to open a new cursor for this join. This can be used to select and filter multi-value fields.
+Optionally, an order_by param can be specified to sort the results returned by the cursor as such:
+
+=item B<< new_cursor_order_by => "some_field.id" >>
 
 =back
 

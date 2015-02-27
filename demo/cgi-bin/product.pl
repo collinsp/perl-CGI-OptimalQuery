@@ -19,12 +19,15 @@ my %schema = (
     'U_ID' => ['product', 'product.id', 'SYS ID', { always_select => 1 }],
     'NAME' => ['product', 'product.name', 'Name'],
     'PRODNO' => ['product', 'product.prodno', 'Product No.'],
+    'BARCODES' => ['inventory', 'inventory.barcode', 'Barcodes'],
     'MANUFACT' => ['manufact', 'manufact.name', 'Manufacturer']
   },
   'show' => "NAME,MANUFACT",
   'joins' => {
     'product' => [undef, 'product'],
     'manufact' => ['product', 'LEFT JOIN manufact ON (product.manufact=manufact.id)'],
+    'inventory' => ['product', 'LEFT JOIN inventory ON (product.id=inventory.product)', undef,
+      { new_cursor => 1, new_cursor_order_by => "inventory.barcode DESC" }]
   },
   'options' => {
     'CGI::OptimalQuery::InteractiveQuery' => {

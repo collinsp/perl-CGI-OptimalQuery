@@ -877,6 +877,10 @@ sub create_cursors {
     ($from_sql, @from_binds) = 
       @{ $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{sql} };
     $where_sql = $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{'join'};
+    my $order_by_sql = '';
+    if ($sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor_order_by}) {
+      $order_by_sql = " ORDER BY ".$sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor_order_by};
+    }
 
     $from_sql .= "\n";
 
@@ -913,7 +917,8 @@ sub create_cursors {
     $c->{sql} = "
 SELECT ".join(',', @{ $c->{select_sql} })."
 FROM $from_sql
-WHERE $where_sql ";
+WHERE $where_sql 
+$order_by_sql ";
     $c->{binds} = [ @{ $c->{select_binds} }, @from_binds, @where_binds ]; 
 
     # if clobs have been selected, find & set LongReadLen

@@ -12,6 +12,8 @@ demo/cgi-bin/on_selectmultiple.pl
 demo/cgi-bin/people.pl
 demo/cgi-bin/product.pl
 demo/cgi-bin/record.pl
+demo/cgi-bin/saved_search_alert.pl
+demo/execute_saved_search_alerts.pl
 demo/make_test_data.pl
 demo/README
 lib/CGI/OptimalQuery.pm
@@ -19,13 +21,16 @@ lib/CGI/OptimalQuery/AbstractQuery.pm
 lib/CGI/OptimalQuery/AutoActionTool.pm
 lib/CGI/OptimalQuery/Base.pm
 lib/CGI/OptimalQuery/CSV.pm
+lib/CGI/OptimalQuery/CustomOutput.pm
 lib/CGI/OptimalQuery/EmailMergeTool.pm
+lib/CGI/OptimalQuery/ExportDataTool.pm
 lib/CGI/OptimalQuery/FilterParser.pm
 lib/CGI/OptimalQuery/InteractiveFilter.pm
 lib/CGI/OptimalQuery/InteractiveFilter2.pm
 lib/CGI/OptimalQuery/InteractiveQuery.pm
 lib/CGI/OptimalQuery/InteractiveQuery2.pm
 lib/CGI/OptimalQuery/InteractiveQuery2Tools.pm
+lib/CGI/OptimalQuery/LoadSearchTool.pm
 lib/CGI/OptimalQuery/OQFilterParser.grammar
 lib/CGI/OptimalQuery/OQFilterParser.pm
 lib/CGI/OptimalQuery/PrinterFriendly.pm
@@ -60,7 +65,7 @@ lib/CGI/OptimalQuery/Resources/view-sort-ascending.png
 lib/CGI/OptimalQuery/Resources/view-sort-descending.png
 lib/CGI/OptimalQuery/Resources/view-statistics.png
 lib/CGI/OptimalQuery/Resources/view.gif
-lib/CGI/OptimalQuery/SavedSearches.pm
+lib/CGI/OptimalQuery/SaveSearchTool.pm
 lib/CGI/OptimalQuery/ShowColumns.pm
 lib/CGI/OptimalQuery/XML.pm
 lib/DBIx/OptimalQuery.pm
@@ -68,6 +73,8 @@ LICENSE
 Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
+MYMETA.json
+MYMETA.yml
 README
 t/001_load.t
 t/002_simpleusage.t

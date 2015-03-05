@@ -61,6 +61,7 @@ sub on_init {
         $rec{alert_dow} = $$o{q}->param('alert_dow');
         $rec{alert_start_hour} = $$o{q}->param('alert_start_hour');
         $rec{alert_end_hour} = $$o{q}->param('alert_end_hour');
+        $rec{alert_last_dt} = [get_sysdate_sql($$o{dbh})];
   
         # get starting alert_uids
         my @uids;
@@ -76,7 +77,6 @@ sub on_init {
         }
         die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if scalar(@uids) > $MAX_ROWS;
         $rec{alert_uids} = join('~', @uids);
-        $rec{alert_uids} = undef if $rec{alert_uids} eq '';
       }
   
       # save saved search to db
@@ -87,8 +87,14 @@ sub on_init {
         if ($is_update) {
           my (@cols,@binds);
           while (my ($col,$val) = each %rec) {
-            push @cols, "$col=?";
-            push @binds, $val;
+            if (ref($val) eq 'ARRAY') {
+              my ($sql,@rest) = @$val;
+              push @cols, "$col=$sql";
+              push @binds, map { $_ eq '' ? undef : $_ } @rest;
+            } else {
+              push @cols, "$col=?";
+              push @binds, ($val eq '') ? undef : $val;
+            }
           }
           push @binds, $id;
           $$o{dbh}->do("UPDATE oq_saved_search SET ".join(',', @cols)." WHERE id=?", undef, @binds);
@@ -100,8 +106,14 @@ sub on_init {
         my (@cols,@vals,@binds);
         while (my ($col,$val) = each %rec) {
           push @cols, $col;
-          push @vals, '?';
-          push @binds, $val;
+          if (ref($val) eq 'ARRAY') {
+            my ($sql,@rest) = @$val;
+            push @vals, $sql;
+            push @binds, map { $_ eq '' ? undef : $_ } @rest;
+          } else {
+            push @vals, '?';
+            push @binds, ($val eq '') ? undef : $val;
+          }
         }
         $$o{dbh}->do("INSERT INTO oq_saved_search (".join(',',@cols).") VALUES (".join(',',@vals).")", undef, @binds);
         $rec{id} ||= $$o{dbh}->last_insert_id("","","","");
@@ -296,8 +308,10 @@ sub custom_output_handler {
       $buf .= " class=ftv" if $$current_saved_search{uids}{$$rec{U_ID}}==3;
       $buf .= "><td>";
       if ($link) {
-        $link = $$current_saved_search{opts}{base_url}.'/'.$link
-          if $link !~ /^https?\:\/\//i;
+        if ($link !~ /^https?\:\/\//i) {
+          $link .= '/'.$link unless $link =~ /^\//;
+          $link = $$current_saved_search{opts}{base_url}.$link;
+        }
         $buf .= "<a href='".escapeHTML($link)."'>open</a>";
       }
       $buf .= "</td>";
@@ -340,6 +354,24 @@ sub sendmail_handler {
   $email{from} ||= ($ENV{USER}||'root').'@'.($ENV{HOSTNAME}||'localhost');
   return Mail::Sendmail::sendmail(%email);
 }
+
+sub get_sysdate_sql {
+  my ($dbh) = @_;
+  my $now;
+  if ($$dbh{Driver}{Name} eq 'Oracle') {
+    $now = 'SYSDATE';
+  } elsif ($$dbh{Driver}{Name} eq 'SQLite') {
+    $now = 'DATETIME()';
+  } elsif ($$dbh{Driver}{Name} eq 'mysql') {
+    $now = 'NOW()';
+  } elsif ($$dbh{Driver}{Name} eq 'Pg' || $$dbh{Driver}{Name} eq 'Microsoft SQL Server') {
+    $now = 'CURRENT_TIMESTAMP';
+  } else {
+    die "Driver: $$dbh{Driver}{Name} not yet supported. Please add support for this database";
+  }
+  return $now;
+}
+
 
 sub execute_saved_search_alerts {
   my %opts = @_;
@@ -574,7 +606,7 @@ $$rec{buf}
 <span class='ftv ib'>added: $total_new</span>
 <span class=ib>removed: $total_deleted</span>
 <p>
-<a href='".escapeHTML("$ENV{REQUEST_URI}?OQLoadSavedSearch=$$rec{ID}".$$rec{state_param_args})."'>load report</a>
+<a href='".escapeHTML($opts{base_url}.$$rec{URI}.'?OQLoadSavedSearch='.$$rec{ID}.$$rec{state_param_args})."'>load report</a>
 </div>
 </body>
 </html>";
@@ -589,18 +621,7 @@ $$rec{buf}
     $update_uids = undef if $update_uids eq '';
     $$rec{err_msg} = undef if $$rec{err_msg} eq '';
     my @binds = ($$rec{err_msg});
-    my $now;
-    if ($$dbh{Driver}{Name} eq 'Oracle') {
-      $now = 'SYSDATE';
-    } elsif ($$dbh{Driver}{Name} eq 'SQLite') {
-      $now = 'DATETIME()';
-    } elsif ($$dbh{Driver}{Name} eq 'mysql') {
-      $now = 'NOW()';
-    } elsif ($$dbh{Driver}{Name} eq 'Pg' || $$dbh{Driver}{Name} eq 'Microsoft SQL Server') {
-      $now = 'CURRENT_TIMESTAMP';
-    } else {
-      die "Driver: $$dbh{Driver}{Name} not yet supported. Please add support for this database";
-    }
+    my $now = get_sysdate_sql($dbh);
 
     my $sql = "UPDATE oq_saved_search SET alert_last_dt=$now, alert_err=?";
     if ($update_uids ne $$rec{ALERT_UIDS}) {

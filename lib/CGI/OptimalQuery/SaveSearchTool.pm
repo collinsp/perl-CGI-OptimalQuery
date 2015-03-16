@@ -417,6 +417,7 @@ sub execute_saved_search_alerts {
 SELECT *
 FROM oq_saved_search
 WHERE alert_dow LIKE ?
+AND alert_mask > 0
 AND ? BETWEEN alert_start_hour AND alert_end_hour";
 
     # only select if interval has been exceeded
@@ -515,7 +516,14 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
           from => $$rec{email_from} || $opts{email_from},
           'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
           subject => "Problem with email alert: $$rec{OQ_TITLE}",
-          body => "Your saved search alert encountered the following error:\n\n$$rec{err_msg}\n\nPlease contact your administrator if you are unable to fix the problem."
+          body => "Your saved search alert encountered the following error:
+
+$$rec{err_msg}
+
+load report:
+".$opts{base_url}.$$rec{URI}.'?OQLoadSavedSearch='.$$rec{ID}.$$rec{state_param_args}."
+
+Please contact your administrator if you are unable to fix the problem."
         );
         $sendmail_handler->(%email) or die "could not send email to: $$rec{email_to}";
       }

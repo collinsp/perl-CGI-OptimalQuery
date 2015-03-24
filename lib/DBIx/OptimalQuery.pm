@@ -471,9 +471,13 @@ sub create_where {
       elsif ($token[0]{colAlias} && $token[2]{colAlias}) {
         my $t0 = $oq->get_col_type($token[0]{colAlias},'filter');
         my $t1 = $oq->get_col_type($token[2]{colAlias},'filter');
+
+        # if types are equal
         if ($t0 ne $t1) {
-          $token[0]{sql} = "TO_CHAR(".$token[0]{sql}.")" unless $t0 eq 'char';
-          $token[2]{sql} = "TO_CHAR(".$token[2]{sql}.")" unless $t1 eq 'char';
+          if ($$oq{dbtype} eq 'Oracle') {
+            $token[0]{sql} = "TO_CHAR(".$token[0]{sql}.")" unless $t0 eq 'char';
+            $token[2]{sql} = "TO_CHAR(".$token[2]{sql}.")" unless $t1 eq 'char';
+          }
         }
         if ($token[1]{name} =~ /contains/) {
           $token[0]{sql} = "UPPER(".$token[0]{sql}.")";

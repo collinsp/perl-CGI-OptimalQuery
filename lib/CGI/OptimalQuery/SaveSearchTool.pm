@@ -53,9 +53,15 @@ sub on_init {
         uri => $$o{schema}{URI},
         oq_title => $$o{schema}{title},
         user_title => $$o{q}->param('OQsaveSearchTitle'),
-        params => $params,
-        alert_mask => $$o{q}->param('alert_mask') || 0
+        params => $params
       );
+
+      # is saved search alerts enabled
+      if ($$o{schema}{savedSearchAlerts}) {
+        $rec{alert_mask} = $$o{q}->param('alert_mask') || 0;
+      }
+
+      # if user enabled search search alerts
       if ($rec{alert_mask}) {
         $rec{alert_interval_min} = $$o{q}->param('alert_interval_min');
         $rec{alert_dow} = $$o{q}->param('alert_dow');

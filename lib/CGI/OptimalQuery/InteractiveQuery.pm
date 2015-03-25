@@ -788,6 +788,7 @@ if (document.getElementById('savedSearchesOptions').style.display != 'none') thi
   my $recs_in_buffer = 0;
   while (my $r = $o->{sth}->fetchrow_hashref()) {
     $opts{mutateRecord}->($r) if ref($opts{mutateRecord}) eq 'CODE';
+    $$o{schema}{mutateRecord}->($r) if ref($$o{schema}{mutateRecord}) eq 'CODE';
 
     my $class = "OQdataRowType$rowType";
     $class .= " OQupdatedRow"

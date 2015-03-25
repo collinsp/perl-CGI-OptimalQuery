@@ -90,6 +90,8 @@ tbody td {
   my $i = 0;
 
   while (my $r = $o->{sth}->fetchrow_hashref()) {
+    $$o{schema}{mutateRecord}->($r) if ref($$o{schema}{mutateRecord}) eq 'CODE';
+
     $buf .= "<tr>";
     foreach my $col (@userselcols) {
       $buf .= "<td>".$o->escape_html((ref($$r{$col}) eq 'ARRAY') ? join(', ', @{$$r{$col}}) : $$r{$col})."</td>";

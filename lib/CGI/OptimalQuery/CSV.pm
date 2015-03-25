@@ -29,6 +29,8 @@ sub output {
 
   # print data
   while (my $rec = $o->{sth}->fetchrow_hashref()) {
+    $$o{schema}{mutateRecord}->($rec) if ref($$o{schema}{mutateRecord}) eq 'CODE';
+
     @buffer = ();
     foreach my $col (@$selCols) {
       my $val = $rec->{$col};

@@ -478,6 +478,21 @@ Options for an InteractiveQuery can be set by defining the following HASHREF in 
 
 =over
 
+=item B<< mutateRecord => sub { } >>
+
+A mutate mutateRecord option can also be set in the options hash. This is useful if you only want to apply the mutation for a particular output module.
+
+  mutateRecord => sub {
+    my $rec = shift;
+
+    # add html links to the person record 
+    # if user selected the NAME field
+    if (exists $$rec{NAME}) {
+      $$rec{NAME} = "<A HREF=/PersonRecord?id=$$rec{ID}>".
+        CGI::escapeHTML($$rec{NAME})."</A>";
+    }
+  }
+
 =item B<< disable_select => 1 >>
 
 =item B<< disable_filter => 1 >>

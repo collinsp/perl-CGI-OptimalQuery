@@ -19,6 +19,8 @@ sub output {
 
   # print data
   while (my $rec = $o->{sth}->fetchrow_hashref()) {
+    $$o{schema}{mutateRecord}->($rec) if ref($$o{schema}{mutateRecord}) eq 'CODE';
+
     $$o{output_handler}->("<record".(($$rec{U_ID})?" id='$$rec{U_ID}'":"").">");
     foreach my $col (sort keys %$rec) {
       my $alt = $o->escape_html($$o{schema}{select}{$col}[2]);

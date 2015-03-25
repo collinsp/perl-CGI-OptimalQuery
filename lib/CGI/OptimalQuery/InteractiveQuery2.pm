@@ -239,6 +239,7 @@ $newBut
   my $odd = 1;
   while (my $r = $o->{sth}->fetchrow_hashref()) {
     $opts{mutateRecord}->($r) if ref($opts{mutateRecord}) eq 'CODE';
+    $$o{schema}{mutateRecord}->($r) if ref($$o{schema}{mutateRecord}) eq 'CODE';
     my @class;
     if ($odd) {
       push @class, 'odd';

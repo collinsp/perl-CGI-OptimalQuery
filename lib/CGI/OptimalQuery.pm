@@ -436,6 +436,19 @@ An interactive query displays a pager mechanism when the result set is larger th
 
 The default rows_page a user has when initially loading InteractiveQuery. Can also be set as a CGI param.
 
+=item B<< mutateRecord => sub { } >>
+
+  $$schema{mutateRecord} = sub {
+    my $rec = shift;
+
+    # add html links to the person record 
+    # if user selected the NAME field
+    if (exists $$rec{NAME}) {
+      $$rec{NAME} = "<A HREF=/PersonRecord?id=$$rec{ID}>".
+        CGI::escapeHTML($$rec{NAME})."</A>";
+    }
+  };
+
 =item B<< savedSearchUserID => $user_id >>
 
 InteractiveQuery can optionally save searches to a database so users can revisit them latter. To do this, saved searches are tied to a unique user id. See the "Saved Searches" section for more information on this topic.
@@ -477,21 +490,6 @@ Options for an InteractiveQuery can be set by defining the following HASHREF in 
   $CONFIG{options}{'CGI::OptimalQuery::InteractiveQuery'}{KEY} = {VAL};
 
 =over
-
-=item B<< mutateRecord => sub { } >>
-
-A mutate mutateRecord option can also be set in the options hash. This is useful if you only want to apply the mutation for a particular output module.
-
-  mutateRecord => sub {
-    my $rec = shift;
-
-    # add html links to the person record 
-    # if user selected the NAME field
-    if (exists $$rec{NAME}) {
-      $$rec{NAME} = "<A HREF=/PersonRecord?id=$$rec{ID}>".
-        CGI::escapeHTML($$rec{NAME})."</A>";
-    }
-  }
 
 =item B<< disable_select => 1 >>
 

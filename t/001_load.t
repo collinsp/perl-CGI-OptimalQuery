@@ -1,7 +1,7 @@
 # -*- perl -*-
 
 # t/001_load.t - check module loading and create testing directory
-use Test::More tests => 18;
+use Test::More tests => 17;
 
 use strict;
 no warnings;
@@ -22,7 +22,6 @@ use_ok('CGI::OptimalQuery::InteractiveQuery2Tools');
 use_ok('CGI::OptimalQuery::InteractiveQuery'); 
 use_ok('CGI::OptimalQuery::OQFilterParser'); 
 use_ok('CGI::OptimalQuery::PrinterFriendly'); 
-use_ok('CGI::OptimalQuery::SavedSearches'); 
 use_ok('CGI::OptimalQuery::ShowColumns'); 
 use_ok('CGI::OptimalQuery::XML'); 
 use_ok('CGI::OptimalQuery');

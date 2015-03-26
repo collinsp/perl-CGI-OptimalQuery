@@ -26,6 +26,7 @@ use_ok('CGI::OptimalQuery::LoadSearchTool');
 use_ok('CGI::OptimalQuery::OQFilterParser'); 
 use_ok('CGI::OptimalQuery::PrinterFriendly'); 
 use_ok('CGI::OptimalQuery::SaveSearchTool'); 
+use_ok('CGI::OptimalQuery::SavedSearches'); 
 use_ok('CGI::OptimalQuery::ShowColumns'); 
 use_ok('CGI::OptimalQuery::XML'); 
 use_ok('CGI::OptimalQuery');

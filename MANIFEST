@@ -65,6 +65,7 @@ lib/CGI/OptimalQuery/Resources/view-sort-ascending.png
 lib/CGI/OptimalQuery/Resources/view-sort-descending.png
 lib/CGI/OptimalQuery/Resources/view-statistics.png
 lib/CGI/OptimalQuery/Resources/view.gif
+lib/CGI/OptimalQuery/SavedSearches.pm
 lib/CGI/OptimalQuery/SaveSearchTool.pm
 lib/CGI/OptimalQuery/ShowColumns.pm
 lib/CGI/OptimalQuery/XML.pm

@@ -192,8 +192,7 @@ sub on_open {
   <p>
   <label title='Specify start hour to sent an alert.'>from: <input type=text value='".$o->escape_html($$rec{ALERT_START_HOUR})."' size=4 maxlength=4 id=OQalert_start_hour placeholder=8AM></label> <label>to: <input type=text value='".$o->escape_html($$rec{ALERT_END_HOUR})."' size=4 maxlength=4 id=OQalert_end_hour placeholder=5PM></label>
   <p><strong>Notice:</strong> This tool sends automatic alerts over insecure email. By creating an alert you acknowledge that the fields in the report will never contain sensitive data. Alerts are automatically disabled when the count exceeds $MAX_ROWS.</strong>
-</fieldset>
-<p><button type=button class=OQSaveReportBut>save</button>";
+</fieldset>";
   }
   else {
     my $rec;
@@ -202,9 +201,12 @@ sub on_open {
     }
     $rec ||= {};
     $buf .= "
-<label>name <input type=text id=OQsaveSearchTitle value='".$o->escape_html($$rec{USER_TITLE})."'></label>
-<p><button type=button class=OQSaveReportBut>save</button>";
+<label>name <input type=text id=OQsaveSearchTitle value='".$o->escape_html($$rec{USER_TITLE})."'></label>";
   }
+
+  $buf .= "<p>";
+  $buf .= "<button type=button class=OQSaveNewReportBut>save as new</button>" if $$o{q}->param('OQss') ne '';
+  $buf .= "<button type=button class=OQSaveReportBut>save</button>";
   return $buf;
 }
 

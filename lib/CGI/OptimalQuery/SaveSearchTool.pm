@@ -128,6 +128,16 @@ sub on_init {
     }; if ($@) {
       my $err = $@;
       $err =~ s/\ at\ .*//;
+
+      if ($err =~ /unique\ constraint/i ||
+          $err =~ /duplicate\ entry/i   ||
+          $err =~ /unique\_violation/i  ||
+          $err =~ /unique\ key/i        ||
+          $err =~ /duplicate\ key/i     ||
+          $err =~ /constraint\_unique/i) {
+        $err = 'Another record with this name already exists.';
+      }
+
       $$o{output_handler}->(CGI::header('application/json').encode_json({ status => "error", msg => $err }));
     }
     return undef;

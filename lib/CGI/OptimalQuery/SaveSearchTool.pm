@@ -23,11 +23,10 @@ sub on_init {
   if ($$o{q}->param('OQsaveSearchTitle') ne '') {
 
     eval {
-
       # serialize params
       my $params;
       { my %data;
-        foreach my $p (qw( show filter sort page rows_page queryDescr hiddenFilter )) {
+        foreach my $p (qw( show filter sort rows_page queryDescr hiddenFilter )) {
           $data{$p} = $$o{q}->param($p);
         }
         if (ref($$o{schema}{state_params}) eq 'ARRAY') {
@@ -482,9 +481,8 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
 
 
     # configure CGI environment
-    local %ENV;
-
     # construct a query string
+    local $ENV{QUERY_STRING};
     { my $p = eval '{'.$$rec{PARAMS}.'}'; 
       $p = {} unless ref($p) eq 'HASH';
       $$p{module} = 'CustomOutput'; # this will call our custom_output_handler function
@@ -502,14 +500,16 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
       }
       $ENV{QUERY_STRING} = join('&', @args);
     }
-    $ENV{REQUEST_METHOD} ||= 'GET';
-    $ENV{REMOTE_ADDR} ||= '127.0.0.1';
-    $ENV{SCRIPT_URL} = $$rec{URI};
-    $ENV{REQUEST_URI} = $$rec{URI};
+    local $ENV{REQUEST_METHOD} ||= 'GET';
+    local $ENV{REMOTE_ADDR} ||= '127.0.0.1';
+    local $ENV{SCRIPT_URL} = $$rec{URI};
+
+    local $ENV{REQUEST_URI} = $$rec{URI};
     $ENV{REQUEST_URI} .= '?'.$ENV{QUERY_STRING} if $ENV{QUERY_STRING};
-    $ENV{HTTP_HOST} ||= ($opts{base_url} =~ /https?\:\/\/([^\/]+)/) ? $1 : 'localhost';
-    $ENV{SERVER_NAME} ||= $ENV{HTTP_HOST};
-    $ENV{SCRIPT_URI} = $opts{base_url}.$ENV{REQUEST_URI};
+
+    local $ENV{HTTP_HOST} ||= ($opts{base_url} =~ /https?\:\/\/([^\/]+)/) ? $1 : 'localhost';
+    local $ENV{SERVER_NAME} ||= $ENV{HTTP_HOST};
+    local $ENV{SCRIPT_URI} = $opts{base_url}.$ENV{REQUEST_URI};
 
     # call app specific request bootstrap handler
     # which will execute a CGI::OptimalQuery object somehow

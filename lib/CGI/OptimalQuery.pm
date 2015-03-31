@@ -646,7 +646,7 @@ Saved Searches are stored in a table in the database pointed to by the database 
     user_title VARCHAR2(1000) NOT NULL,
     params CLOB,
     -- 0:disabled, 1:added, 2:removed, 4:present
-    alert_mask NUMBER NOT NULL DEFAULT 0,
+    alert_mask NUMBER DEFAULT 0 NOT NULL,
     alert_interval_min NUMBER,
     alert_dow VARCHAR2(7),
     alert_start_hour NUMBER,

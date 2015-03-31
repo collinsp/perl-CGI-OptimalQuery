@@ -12,14 +12,36 @@ sub output {
   my $o = shift;
   my $buf = CGI::header('text/html')."<!DOCTYPE html>\n<html><body><div class=OQFilterPanel><h1>filter</h1><table>";
   my $types = $$o{oq}->get_col_types('filter');
-
   my $s = $$o{schema}{select};
+
+  my $filter = $$o{q}->param('filter');
+
+  # add new field to filter?
+  if ($$o{q}->param('field') ne '') {
+    my $field = $$o{q}->param('field');
+
+    # if named filter exists for this field, use the named filter
+    if (exists $$o{schema}{named_filters}{$field}) {
+      $filter .= " AND " if $filter;
+      $filter .= $field.'()';
+    }
+    elsif (! $$s{$field}[3]{disable_filter}) {
+      $filter .= " AND " if $filter;
+      if ($$types{$field} eq 'char') {
+        $filter .= "[$field] contains ''";
+      } else {
+        $filter .= "[$field] = ''";
+      }
+    }
+  }
+  
+
   my @cols = grep {
     $$s{$_}[2] ne '' && ! $$s{$_}[3]{disable_filter} && ! $$s{$_}[3]{is_hidden}
   } sort { $$s{$a}[2] cmp $$s{$b}[2] } keys %$s;
   my @op = (qw( = != < <= > >= like ), 'not like', 'contains', 'not contains');
 
-  my $parsedFilter = CGI::OptimalQuery::FilterParser::parseFilter($o,$$o{q}->param('filter'));
+  my $parsedFilter = CGI::OptimalQuery::FilterParser::parseFilter($o, $filter);
   foreach my $f (@$parsedFilter) {
     $buf .= "<tr>";
 
@@ -164,6 +186,9 @@ sub output {
   $buf .= "<select class=newfilter><option value=''>-- add new filter element</option><optgroup label='Column to compare:'>";
 
   foreach my $c (@cols) {
+    # if there is a named filter for this field, skip it and make user use named filter instead
+    next if exists $$o{schema}{named_filters}{$c};
+
     $buf .= "<option value='".escapeHTML($c)."'";
     $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char';
     $buf .= ">".escapeHTML($$o{schema}{select}{$c}[2]);

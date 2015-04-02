@@ -379,7 +379,7 @@ sub create_where {
   my $sth = shift;
 
   $$sth{oq}{error_handler}->("DEBUG: \$sth->create_where()\n") if $$sth{oq}{debug};
-  return undef if $sth->{'filter'} eq '' && $sth->{'hiddenFilter'} eq '';
+  return undef if $sth->{'filter'} eq '' && $sth->{'hiddenFilter'} eq '' && $sth->{'forceFilter'} eq '';
 
   # this sub glues together a parsed expression
   # basically is glues statements that look like:
@@ -679,6 +679,16 @@ sub create_where {
     $c->{where_sql}  = '('.$c->{where_sql}.') AND ' if $c->{where_sql} ne '';
     $c->{where_sql}  .= '('.$$hiddenFilter{sql}.')';
     push @{ $c->{where_binds} }, @{ $$hiddenFilter{binds} };
+  }
+
+  # add system filter parts to cursor's where parts
+  if ($sth->{'forceFilter'} ne '') {
+    my $forceFilter = $$sth{oq}->parse($DBIx::OptimalQuery::filterGrammar, $sth->{'forceFilter'}, \%translations)
+      or die "could not parse forceFilter: ".$sth->{'forceFilter'};
+    push @{ $c->{where_deps} }, @{ $$forceFilter{deps} };
+    $c->{where_sql}  = '('.$c->{where_sql}.') AND ' if $c->{where_sql} ne '';
+    $c->{where_sql}  .= '('.$$forceFilter{sql}.')';
+    push @{ $c->{where_binds} }, @{ $$forceFilter{binds} };
   }
 
   return undef;

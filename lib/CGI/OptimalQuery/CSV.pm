@@ -3,7 +3,7 @@ package CGI::OptimalQuery::CSV;
 use strict;
 use warnings;
 no warnings qw( uninitialized );
-use base 'CGI::OptimalQuery::AbstractQuery';
+use base 'CGI::OptimalQuery::Base';
 use CGI();
 
 sub output {
@@ -28,7 +28,7 @@ sub output {
   $$o{output_handler}->(join(',', @buffer)."\r\n");
 
   # print data
-  while (my $rec = $o->{sth}->fetchrow_hashref()) {
+  while (my $rec = $o->sth->fetchrow_hashref()) {
     $$o{schema}{mutateRecord}->($rec) if ref($$o{schema}{mutateRecord}) eq 'CODE';
 
     @buffer = ();
@@ -40,7 +40,7 @@ sub output {
     }
     $$o{output_handler}->(join(',', @buffer)."\r\n");
   }
-  $o->{sth}->finish();
+  $o->sth->finish();
   return undef;
 }
 

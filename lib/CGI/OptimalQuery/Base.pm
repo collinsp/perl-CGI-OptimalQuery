@@ -124,6 +124,50 @@ sub new {
       if ! $$o{oq}{select}{$selectAlias}[2];
   }
 
+  # load HTML form params or use values in schema
+  for (qw( show filter sort page rows_page module queryDescr hiddenFilter )) {
+    if (defined $$o{q}->param($_)) {
+      $$o{$_} = $$o{q}->param($_);
+    } else {
+      $$o{$_} = $$o{schema}{$_};
+    }
+  }
+
+  # convert show & sort into array
+  if (! ref($$o{show})) {
+    my @ar = split /\,/, $$o{show};
+    $$o{show} = \@ar;
+  } 
+
+  # set default page & rows_page if not already defined
+  $$o{page} ||= 1;
+  $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
+  $$o{rows_page} ||= $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
+  $$o{hiddenFilter} ||= '';
+  $$o{queryDescr} ||= '';
+
+  # if any fields are passed into on_select, ensure they are always selected
+  my $on_select = $$o{q}->param('on_select');
+  if ($on_select =~ /[^\,]+\,(.+)/) {
+    my @fields = split /\,/, $1;
+    for (@fields) {
+      $$o{oq}{'select'}{$_}[3]{always_select}=1
+        if exists $$o{oq}{'select'}{$_};
+    }
+  }
+
+  # if we still don't have something to show then show all cols
+  # that aren't hidden
+  if (! scalar( @{ $$o{show} } )) {
+    for (keys %{ $$o{schema}{select} }) {
+      push @{$$o{show}}, $_ unless $$o{oq}->{'select'}->{$_}->[3]->{is_hidden};
+    }
+  }
+
+  # check schema validity
+  $$o{oq}->check_join_counts() if $$o{schema}{check} && ! defined $$o{q}->param('module');
+
+
   # install the export tool
   CGI::OptimalQuery::ExportDataTool::activate($o);
 
@@ -188,57 +232,17 @@ sub clone {
 
 
 
-sub sth_execute {
+#-------------- ACCESSORS --------------------------------------------------
+sub sth {
   my ($o) = @_;
-
-  # load HTML form params or use values in schema
-  for (qw( show filter sort page rows_page module queryDescr hiddenFilter )) {
-    if (defined $$o{q}->param($_)) {
-      $$o{$_} = $$o{q}->param($_);
-    } else {
-      $$o{$_} = $$o{schema}{$_};
-    }
-  }
-
-  # convert show & sort into array
-  if (! ref($$o{show})) {
-    my @ar = split /\,/, $$o{show};
-    $$o{show} = \@ar;
-  } 
-
-  # set default page & rows_page if not already defined
-  $$o{page} ||= 1;
-  $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
-  $$o{rows_page} ||= $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
-  $$o{hiddenFilter} ||= '';
-  $$o{queryDescr} ||= '';
-
-  # if any fields are passed into on_select, ensure they are always selected
-  my $on_select = $$o{q}->param('on_select');
-  if ($on_select =~ /[^\,]+\,(.+)/) {
-    my @fields = split /\,/, $1;
-    for (@fields) {
-      $$o{oq}{'select'}{$_}[3]{always_select}=1
-        if exists $$o{oq}{'select'}{$_};
-    }
-  }
-
-  # if we still don't have something to show then show all cols
-  # that aren't hidden
-  if (! scalar( @{ $$o{show} } )) {
-    for (keys %{ $$o{schema}{select} }) {
-      push @{$$o{show}}, $_ unless $$o{oq}->{'select'}->{$_}->[3]->{is_hidden};
-    }
-  }
-
-  # check schema validity
-  $$o{oq}->check_join_counts() if $$o{schema}{check} && ! defined $$o{q}->param('module');
+  return $$o{sth} if $$o{sth};
 
   # create & execute SQL statement
-  $$o{sth} ||= $$o{oq}->prepare(
+  $$o{sth} = $$o{oq}->prepare(
     show   => $$o{show},
     filter => $$o{filter},
     hiddenFilter => $$o{hiddenFilter},
+    forceFilter => $$o{schema}{forceFilter},
     sort   => $$o{sort} );
 
   # calculate what the limit is
@@ -264,12 +268,7 @@ sub sth_execute {
 
   # execute query
   $$o{sth}->execute( limit => $$o{limit} );
-}
 
-#-------------- ACCESSORS --------------------------------------------------
-sub sth {
-  my ($o) = @_;
-  $o->sth_execute() if ! $$o{sth};
   return $$o{sth};
 }
 sub get_count        { $_[0]->sth->count() }
@@ -279,8 +278,8 @@ sub get_lo_rec       { $_[0]{limit}[0]  }
 sub get_hi_rec       { $_[0]{limit}[1]  }
 sub get_num_pages    { $_[0]{num_pages} }
 sub get_title        { $_[0]{schema}{title} }
-sub get_filter       { $_[0]{sth}->filter_descr() }
-sub get_sort         { $_[0]{sth}->sort_descr() }
+sub get_filter       { $_[0]->sth->filter_descr() }
+sub get_sort         { $_[0]->sth->sort_descr() }
 sub get_query        { $_[0]{query}     }
 sub get_nice_name    { $_[0]{schema}{select}{$_[1]}[2] }
 sub get_num_usersel_cols { scalar @{$_[0]{show}} }

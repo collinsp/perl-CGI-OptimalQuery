@@ -3,7 +3,7 @@ package CGI::OptimalQuery::InteractiveQuery;
 use strict;
 use warnings;
 no warnings qw( uninitialized );
-use base 'CGI::OptimalQuery::AbstractQuery';
+use base 'CGI::OptimalQuery::Base';
 
 sub new {
   my $pack = shift;
@@ -697,7 +697,7 @@ if (document.getElementById('savedSearchesOptions').style.display != 'none') thi
 "</td></tr>
 <tr id='OQsort'><td class='OQinfoName'>Sort:</td><td class='OQinfoVal'>";
 
-  my @sort = $o->{sth}->sort_descr();
+  my @sort = $o->sth->sort_descr();
   if (@sort) {
     # create new sort description
     my @buffer;
@@ -786,7 +786,7 @@ if (document.getElementById('savedSearchesOptions').style.display != 'none') thi
   my %noEsc = map { $_ => 1 } @{ $opts{noEscapeCol} };
 
   my $recs_in_buffer = 0;
-  while (my $r = $o->{sth}->fetchrow_hashref()) {
+  while (my $r = $o->sth->fetchrow_hashref()) {
     $opts{mutateRecord}->($r) if ref($opts{mutateRecord}) eq 'CODE';
     $$o{schema}{mutateRecord}->($r) if ref($$o{schema}{mutateRecord}) eq 'CODE';
 
@@ -838,7 +838,7 @@ if (document.getElementById('savedSearchesOptions').style.display != 'none') thi
     $recs_in_buffer++;
     if ($recs_in_buffer == 20) { $$o{output_handler}->($doc); $doc = ''; $recs_in_buffer = 0; }
   }
-  $o->{sth}->finish();
+  $o->sth->finish();
 
   $doc .= "
 </tbody>

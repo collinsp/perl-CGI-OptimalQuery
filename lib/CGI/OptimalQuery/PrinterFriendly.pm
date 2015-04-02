@@ -3,7 +3,7 @@ package CGI::OptimalQuery::PrinterFriendly;
 use strict;
 use warnings;
 no warnings qw( uninitialized );
-use base 'CGI::OptimalQuery::AbstractQuery';
+use base 'CGI::OptimalQuery::Base';
 use POSIX qw( strftime );
 
 sub output {
@@ -89,7 +89,7 @@ tbody td {
 
   my $i = 0;
 
-  while (my $r = $o->{sth}->fetchrow_hashref()) {
+  while (my $r = $o->sth->fetchrow_hashref()) {
     $$o{schema}{mutateRecord}->($r) if ref($$o{schema}{mutateRecord}) eq 'CODE';
 
     $buf .= "<tr>";
@@ -106,7 +106,7 @@ tbody td {
     }
   }
   $$o{output_handler}->($buf);
-  $o->{sth}->finish();
+  $o->sth->finish();
   $buf .= "
 </tbody>
 </table>

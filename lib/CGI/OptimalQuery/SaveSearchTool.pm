@@ -7,17 +7,20 @@ use Mail::Sendmail();
 use CGI qw( escapeHTML );
 use JSON::XS;
 
-# specify max character threshold after which report rows are now outputted in email
-my $TRUNC_REPORT_CHAR_LIMIT = 500000;   # ~ .5MB allowed per report
+# save a reference to the current saved save that is running via crontab right now
+our $current_saved_search;
 
-# specify maximum rows allowed to be procssed by saved search alerts
-# warning: don't set this too high
-# all uids are stored in oq_saved_search.alert_uids field
-# this field is then consulted to determine when new records are added/removed
-my $MAX_ROWS = 1000;
-
+# this is called from Base constructor
 sub on_init {
   my ($o) = @_;
+
+  # adjust config if a saved search alert is running via cron right now
+  # unable to set these earlier because we dont have a constructed OQ yet
+  $$o{schema}{savedSearchAlertMaxRecs} ||= 1000;
+  $$o{schema}{savedSearchAlertEmailCharLimit} ||= 500000;
+
+  # one more to detect overflow
+  $$o{q}->param('rows_page', $$o{schema}{savedSearchAlertMaxRecs} + 1) if $current_saved_search;
 
   # request to save a search?
   if ($$o{q}->param('OQsaveSearchTitle') ne '') {
@@ -29,6 +32,7 @@ sub on_init {
         foreach my $p (qw( show filter sort rows_page queryDescr hiddenFilter )) {
           $data{$p} = $$o{q}->param($p);
         }
+        delete $data{rows_page} unless $data{rows_page} eq 'All' || $data{rows_page} > 25;
         if (ref($$o{schema}{state_params}) eq 'ARRAY') {
           foreach my $p (@{ $$o{schema}{state_params} }) {
             my @v = $$o{q}->param($p);
@@ -73,14 +77,15 @@ sub on_init {
         my $sth = $$o{oq}->prepare(
           show   => ['UID'],
           filter => scalar($$o{q}->param('filter')),
+          forceFilter => $$o{schema}{forceFilter},
           hiddenFilter => scalar($$o{q}->param('hiddenFilter'))
         );
 
-        $sth->execute(limit => [1, $MAX_ROWS + 1]);
+        $sth->execute(limit => [1, $$o{schema}{savedSearchAlertMaxRecs} + 1]);
         while (my $h = $sth->fetchrow_hashref()) {
           push @uids, $$h{U_ID};
         }
-        die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if scalar(@uids) > $MAX_ROWS;
+        die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if scalar(@uids) > $$o{schema}{savedSearchAlertMaxRecs};
         $rec{alert_uids} = join('~', @uids);
       }
   
@@ -200,7 +205,7 @@ sub on_open {
 
   <p>
   <label title='Specify start hour to sent an alert.'>from: <input type=text value='".$o->escape_html($$rec{ALERT_START_HOUR})."' size=4 maxlength=4 id=OQalert_start_hour placeholder=8AM></label> <label>to: <input type=text value='".$o->escape_html($$rec{ALERT_END_HOUR})."' size=4 maxlength=4 id=OQalert_end_hour placeholder=5PM></label>
-  <p><strong>Notice:</strong> This tool sends automatic alerts over insecure email. By creating an alert you acknowledge that the fields in the report will never contain sensitive data. Alerts are automatically disabled when the count exceeds $MAX_ROWS.</strong>
+  <p><strong>Notice:</strong> This tool sends automatic alerts over insecure email. By creating an alert you acknowledge that the fields in the report will never contain sensitive data. Alerts are automatically disabled when the count exceeds $$o{schema}{savedSearchAlertMaxRecs}.</strong>
 </fieldset>";
   }
   else {
@@ -234,7 +239,6 @@ sub activate {
 # This output handler insteads updates the $current_saved_search
 # it discovers which uids have been added, deleted, or are still present for a saved search.
 # this information is then used by the [arent caller (execute_saved_search_alerts) to send out alert emails
-our $current_saved_search;
 sub custom_output_handler {
   my ($o) = @_;
   # verify that a proper email_to was defined
@@ -284,8 +288,8 @@ sub custom_output_handler {
     $$current_saved_search{state_param_args} = $args;
   }
 
-  while (my $rec = $o->{sth}->fetchrow_hashref()) {
-    die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if ++$cnt > $MAX_ROWS;
+  while (my $rec = $o->sth->fetchrow_hashref()) {
+    die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if ++$cnt > $$o{schema}{savedSearchAlertMaxRecs};
     $opts{mutateRecord}->($rec) if ref($opts{mutateRecord}) eq 'CODE';
 
     # if this record has been seen before, mark it with a '2'
@@ -349,10 +353,10 @@ sub custom_output_handler {
       }
       $buf .= "</tr>\n";
 
-      $dataTruc = 1 if length($buf) > $TRUNC_REPORT_CHAR_LIMIT;
+      $dataTruc = 1 if length($buf) > $$o{schema}{savedSearchAlertEmailCharLimit};
     }
   }
-  $o->{sth}->finish();
+  $o->sth->finish();
 
   # if we found rows, encase it in a table with thead
   if ($row_cnt > 0) {
@@ -467,18 +471,17 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
   #$opts{error_handler}->("found ".scalar(@recs)." saved searches to execute") if $opts{debug};
 
   # for each saved search that has alerts which need to be checked
+  local $current_saved_search = undef;
   while ($#recs > -1) {
     my $rec = pop @recs;
 
-    local $current_saved_search = $rec;
+    $current_saved_search = $rec;
     my %uids = map { $_ => 1 } split /\~/, $$rec{ALERT_UIDS};
     $$rec{opts} = \%opts;
     $$rec{uids} = \%uids; # contains all the previously seen uids
     $$rec{buf} = ''; # will be populated with a table containing report rows for a simple HTML email
     $$rec{err_msg} = '';
     $opts{error_handler}->("executing saved search: $$rec{ID}") if $opts{debug};
-
-
 
     # configure CGI environment
     # construct a query string
@@ -487,7 +490,6 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
       $p = {} unless ref($p) eq 'HASH';
       $$p{module} = 'CustomOutput'; # this will call our custom_output_handler function
       $$p{page} = 1;
-      $$p{rows_page} = $MAX_ROWS + 1; # one more to detect overflow
       my @args;
       while (my ($k,$v) = each %$p) {
         if (ref($v) eq 'ARRAY') {
@@ -659,6 +661,8 @@ $$rec{buf}
     #$opts{error_handler}->("SQL: $sql\nBINDS: ".join(',', @binds)) if $opts{debug};
     my $sth = $dbh->prepare_cached($sql);
     $sth->execute(@binds);
+
+    $current_saved_search = undef;
   }
 
   $opts{error_handler}->("execute_saved_search_alerts done") if $opts{debug};

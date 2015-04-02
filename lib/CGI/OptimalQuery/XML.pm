@@ -3,7 +3,7 @@ package CGI::OptimalQuery::XML;
 use strict;
 use warnings;
 no warnings qw( uninitialized );
-use base 'CGI::OptimalQuery::AbstractQuery';
+use base 'CGI::OptimalQuery::Base';
 use CGI();
 
 sub output {
@@ -18,7 +18,7 @@ sub output {
 "<?xml version=\"1.0\"?><OptimalQuery>");
 
   # print data
-  while (my $rec = $o->{sth}->fetchrow_hashref()) {
+  while (my $rec = $o->sth->fetchrow_hashref()) {
     $$o{schema}{mutateRecord}->($rec) if ref($$o{schema}{mutateRecord}) eq 'CODE';
 
     $$o{output_handler}->("<record".(($$rec{U_ID})?" id='$$rec{U_ID}'":"").">");
@@ -39,7 +39,7 @@ sub output {
   }
   $$o{output_handler}->("</OptimalQuery>");
 
-  $o->{sth}->finish();
+  $o->sth->finish();
   return undef;
 }
 

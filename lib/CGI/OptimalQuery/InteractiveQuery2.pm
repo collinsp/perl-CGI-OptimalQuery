@@ -3,7 +3,7 @@ package CGI::OptimalQuery::InteractiveQuery2;
 use strict;
 use warnings;
 no warnings qw( uninitialized );
-use base 'CGI::OptimalQuery::AbstractQuery';
+use base 'CGI::OptimalQuery::Base';
 use CGI();
 
 sub escapeHTML {
@@ -200,7 +200,7 @@ $newBut
     $buf .= "><td class=OQlabel>Filter:</td><td>".escapeHTML($filter)."</td></tr>";
   }
 
-  my @sort = $o->{sth}->sort_descr;
+  my @sort = $o->sth->sort_descr;
   if ($#sort > -1) {
     $buf .= "<tr class=OQSortDescr><td class=OQlabel>Sort:</td><td>";
     my $comma = '';
@@ -237,7 +237,7 @@ $newBut
   my $typeMap = $o->{oq}->get_col_types('select');
   my %noEsc = map { $_ => 1 } @{ $opts{noEscapeCol} };
   my $odd = 1;
-  while (my $r = $o->{sth}->fetchrow_hashref()) {
+  while (my $r = $o->sth->fetchrow_hashref()) {
     $opts{mutateRecord}->($r) if ref($opts{mutateRecord}) eq 'CODE';
     $$o{schema}{mutateRecord}->($r) if ref($$o{schema}{mutateRecord}) eq 'CODE';
     my @class;
@@ -304,7 +304,7 @@ $newBut
       $recs_in_buffer = 0;
     }
   }
-  $o->{sth}->finish();
+  $o->sth->finish();
 
   $buf .= "</tbody></table>\n";
 

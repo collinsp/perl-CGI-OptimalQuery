@@ -364,7 +364,12 @@ intercept messages sent to the error handler. Very useful if you are running in 
 
 =item B<< hiddenFilter => "[SELECT_COL_ALIAS] like 'foo' AND .." >>
 
-default filters to include on a fresh loaded OptimalQuery. The value is translated to an SQL where clause using the grammar described in the I<FILTER GRAMMAR> section. Both filter options can also be set by CGI param.  Example: 
+=item B<< forceFilter => "[SELECT_COL_ALIAS] like 'foo' AND .." >>
+
+Filters add SQL to the where clause. If a CGI param called 'filter' or 'hiddenFilter' are provided, the CGI param value is used instead. The value of a forceFilter cannot be overridden. Users can manipulate a filter using the filter dialog tool. The hiddenFilter can only be manipulated using the GET param. Filters allow developers and end users to add SQL to the where clause. The filter grammar is described in the I<FILTER GRAMMAR> section.
+
+For example:
+
   <a href=/Search?filter=".escape_uri("[NAME] like 'foo'")
 
 =item B<< module => { OverloadModuleLabel => PerlModuleName, .. } >>
@@ -456,6 +461,14 @@ InteractiveQuery can optionally save searches to a database so users can revisit
 =item B<< savedSearchAlerts => 0 | 1 >>
 
 If savedSearchUserID, is defined, setting savedSearchAlerts to 1 will enhance dialogs to optionally allow users to configure saved searches to alert them when records are added, removed, or are present. See the "Saved Search Alerts" section for additional details on configuring this feature.
+
+=item B<< savedSearchAlertMaxRecs => 1000 >>
+
+Specify maximum record UIDs to store in saved search alert previously seen uid history. The previously stored list of UIDs is used to determine if a new record has appeared. Don't set this too high - the pks are stored in the saved search table. The default settings allow about 14k of data per saved search. (15 char key size * 1000 savedSearchAlertMaxRecs) / 1024 = 14k.
+
+=item B<< savedSearchAlertEmailCharLimit => 500000 >>
+
+Maximum character limit of saved saerch alert email. If limit is reached, a message appears instructing the user reduce the size by hiding fields or modify filters. The default value is 500000 (~ .5MB)
 
 =item B<< sort => "[COLALIAS1] DESC, [COLALIAS2]" >>
 

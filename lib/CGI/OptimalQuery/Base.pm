@@ -66,12 +66,6 @@ sub new {
 
   $$o{schema}{URI_standalone} ||= $$o{schema}{URI};
 
-  # make sure default show is in array notation
-  if (! ref($$o{schema}{show}) eq 'ARRAY') {
-    my @ar = grep { s/^\s+//; s/\s+$//; $_ } split /\,/, $$o{schema}{show};
-    $$o{schema}{show} = \@ar;
-  } 
-
   # make sure developer is not using illegal state_params
   if (ref($$o{schema}{state_params}) eq 'ARRAY') {
     foreach my $p (@{ $$o{schema}{state_params} }) {
@@ -124,28 +118,6 @@ sub new {
       if ! $$o{oq}{select}{$selectAlias}[2];
   }
 
-  # load HTML form params or use values in schema
-  for (qw( show filter sort page rows_page module queryDescr hiddenFilter )) {
-    if (defined $$o{q}->param($_)) {
-      $$o{$_} = $$o{q}->param($_);
-    } else {
-      $$o{$_} = $$o{schema}{$_};
-    }
-  }
-
-  # convert show & sort into array
-  if (! ref($$o{show})) {
-    my @ar = split /\,/, $$o{show};
-    $$o{show} = \@ar;
-  } 
-
-  # set default page & rows_page if not already defined
-  $$o{page} ||= 1;
-  $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
-  $$o{rows_page} ||= $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
-  $$o{hiddenFilter} ||= '';
-  $$o{queryDescr} ||= '';
-
   # if any fields are passed into on_select, ensure they are always selected
   my $on_select = $$o{q}->param('on_select');
   if ($on_select =~ /[^\,]+\,(.+)/) {
@@ -156,17 +128,8 @@ sub new {
     }
   }
 
-  # if we still don't have something to show then show all cols
-  # that aren't hidden
-  if (! scalar( @{ $$o{show} } )) {
-    for (keys %{ $$o{schema}{select} }) {
-      push @{$$o{show}}, $_ unless $$o{oq}->{'select'}->{$_}->[3]->{is_hidden};
-    }
-  }
-
   # check schema validity
   $$o{oq}->check_join_counts() if $$o{schema}{check} && ! defined $$o{q}->param('module');
-
 
   # install the export tool
   CGI::OptimalQuery::ExportDataTool::activate($o);
@@ -181,6 +144,30 @@ sub new {
   # run on_init function for each enabled tool
   foreach my $v (values %{ $$o{schema}{tools} }) {
     $$v{on_init}->($o) if ref($$v{on_init}) eq 'CODE';
+  }
+
+  # set default page & rows_page if not already defined
+  $$o{page} ||= $$o{q}->param('page') || 1;
+  $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
+  $$o{rows_page} ||= $$o{q}->param('rows_page') || $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
+  $$o{show} ||= $$o{q}->param('show') || $$o{schema}{show};
+  $$o{filter}       = (defined $$o{q}->param('filter'))       ? $$o{q}->param('filter')       : $$o{schema}{filter} || '';
+  $$o{hiddenFilter} = (defined $$o{q}->param('hiddenFilter')) ? $$o{q}->param('hiddenFilter') : $$o{schema}{hiddenFilter} || '';
+  $$o{queryDescr}   = (defined $$o{q}->param('queryDescr'))   ? $$o{q}->param('queryDescr')   : $$o{schema}{queryDescr} || '';
+  $$o{sort}         = (defined $$o{q}->param('sort'))         ? $$o{q}->param('sort')         : $$o{schema}{sort} || '';
+
+  # convert show into array
+  if (! ref($$o{show})) {
+    my @ar = split /\,/, $$o{show};
+    $$o{show} = \@ar;
+  } 
+
+  # if we still don't have something to show then show all cols
+  # that aren't hidden
+  if (! scalar( @{ $$o{show} } )) {
+    for (keys %{ $$o{schema}{select} }) {
+      push @{$$o{show}}, $_ unless $$o{oq}->{'select'}->{$_}->[3]->{is_hidden};
+    }
   }
 
   return $o;

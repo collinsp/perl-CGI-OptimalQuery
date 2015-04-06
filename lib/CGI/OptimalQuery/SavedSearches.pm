@@ -38,12 +38,12 @@ sub process_request {
           delete $$params{queryDescr};
           delete $$params{sort};
           while (my ($k,$v) = each %$params) {
-            $stateArgs .= "&amp;$k=";
+            $stateArgs .= "&$k=";
             $stateArgs .= (ref($v) eq 'ARRAY') ? CGI::escape($$v[0]) : CGI::escape($v);
           }
         }
       }
-      print CGI::header("text/html"), "<html><script>window.location='$uri?OQLoadSavedSearch=".$id.$stateArgs."#OQtop';</script><noscript><a href=$uri?OQLoadSavedSearch=".$id.$stateArgs."#OQtop>continue</a></noscript></html>";
+      print CGI::redirect("$uri?OQLoadSavedSearch=".$id.$stateArgs);
       return undef;
     }
   }

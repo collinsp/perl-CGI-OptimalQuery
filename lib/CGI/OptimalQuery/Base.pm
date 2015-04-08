@@ -261,8 +261,8 @@ sub sth {
 sub get_count        { $_[0]->sth->count() }
 sub get_rows_page    { $_[0]{rows_page} }
 sub get_current_page { $_[0]{page}      }
-sub get_lo_rec       { $_[0]{limit}[0]  }
-sub get_hi_rec       { $_[0]{limit}[1]  }
+sub get_lo_rec       { $_[0]->sth->get_lo_rec() }
+sub get_hi_rec       { $_[0]->sth->get_hi_rec() }
 sub get_num_pages    { $_[0]{num_pages} }
 sub get_title        { $_[0]{schema}{title} }
 sub get_filter       { $_[0]->sth->filter_descr() }

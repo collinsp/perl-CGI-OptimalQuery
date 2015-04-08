@@ -52,6 +52,9 @@ sub new {
   return $sth;
 }
 
+sub get_lo_rec { $_[0]{limit}[0] }
+sub get_hi_rec { $_[0]{limit}[1] }
+
 # execute statement
 # notice that we can't execute other child cursors
 # because their bind params are dependant on
@@ -62,13 +65,19 @@ sub execute {
   $$sth{oq}{error_handler}->("DEBUG: \$sth->execute(\n".Dumper(\%args).")\n") if $$sth{oq}{debug};
 
   my $count = $sth->count();
+
   $args{limit} ||= [];
   if ($count > 0) {
-    my $lo_rec = $args{limit}[0] || 1;
-    my $hi_rec = $args{limit}[1] || $count;
-    $hi_rec = $count if $args{limit}[1] eq '*';
-    $sth->add_limit_sql($lo_rec, $hi_rec);
+    $args{limit}[0] ||= 1;
+    $args{limit}[1] ||= $count;
+    $args{limit}[1] = $count if $args{limit}[1] eq '*';
+    $sth->add_limit_sql($args{limit}[0],$args{limit}[1]);
+  } else {
+    $args{limit} = [0,0];
   }
+
+  # preserve limit in object
+  $$sth{limit} = $args{limit};
 
   my $c = $sth->{cursors}->[0];
 

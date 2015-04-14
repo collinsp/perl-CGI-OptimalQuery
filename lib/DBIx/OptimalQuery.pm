@@ -617,6 +617,9 @@ sub create_where {
           } elsif ($token[1]{sql} eq '!=') {
             $token[1]{sql} = '=';
             $preSql .= 'NOT ';
+          } elsif ($token[1]{sql} eq 'is null' ) {
+            $token[1]{sql} = 'is not null';
+            $preSql .= 'NOT ';
           }
           $preSql  .= 'EXISTS ( SELECT 1 FROM '.$fromSql.' WHERE ('.$corelatedJoin.') AND ';
           $postSql .= ')';

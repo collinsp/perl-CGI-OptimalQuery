@@ -513,6 +513,9 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
     local $ENV{SERVER_NAME} ||= $ENV{HTTP_HOST};
     local $ENV{SCRIPT_URI} = $opts{base_url}.$ENV{REQUEST_URI};
 
+    # The CGI library has some globals that need to be reset otherwise the previous params stick around
+    CGI::initialize_globals();
+
     # call app specific request bootstrap handler
     # which will execute a CGI::OptimalQuery object somehow
     # and populate $$rec{buf}, $$rec{uids}, $$rec{err_msg}

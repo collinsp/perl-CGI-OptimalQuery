@@ -329,9 +329,11 @@ sub create_select {
       #$select_sql->[0] = 'to_char('.$select_sql->[0].')';
     }
 
-    push @{ $cursor->{select_field_order} }, $show;
-    push @{ $cursor->{select_sql} }, $select_sql->[0].' AS '.$show;
-    push @{ $cursor->{select_binds} }, @$select_sql[1 .. $#$select_sql];
+    if ($select_sql->[0] ne '') {
+      push @{ $cursor->{select_field_order} }, $show;
+      push @{ $cursor->{select_sql} }, $select_sql->[0].' AS '.$show;
+      push @{ $cursor->{select_binds} }, @$select_sql[1 .. $#$select_sql];
+    }
   }
 
   return undef;

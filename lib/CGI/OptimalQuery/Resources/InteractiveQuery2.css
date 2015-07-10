@@ -329,7 +329,11 @@ form.OQform {
   margin: .5em;
 }
 .OQAddColumnsPanel label {
-  min-width: 140px;
+  min-width: 160px;
+  font-weight: normal;
+  font-size: 12px;
+  padding: 4px;
+  display: inline-block;
   cursor: pointer;
 }
 .CancelFilterBut, .OKFilterBut {

@@ -1,10 +1,10 @@
 These instructions guide the reader through the steps to install a small perl
 CGI app which uses CGI::OptimalQuery. These instructions have been tested on
-Scientific Linux 6.
+Scientific Linux 7.
 
 
 Step 1) Install required packages
-  sudo yum install libdbi-dbd-sqlite httpd
+  sudo yum install libdbi-dbd-sqlite httpd perl-DBD-SQLite
 
 
 Step 2) create and populate an sqlite database

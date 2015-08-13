@@ -418,7 +418,7 @@ sub execute_saved_search_alerts {
     }
   };
 
-  $opts{error_handler}->("info", "execute_saved_search_alerts started") if $opts{debug};
+  $opts{error_handler}->("info", "execute_saved_search_alerts started");
 
   local $CGI::OptimalQuery::CustomOutput::custom_output_handler = \&custom_output_handler;
 
@@ -545,7 +545,7 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
           to => $$rec{email_to},
           from => $$rec{email_from} || $opts{email_from},
           'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
-          subject => "Problem with email alert: $$rec{OQ_TITLE}",
+          subject => "Problem with email alert: $$rec{OQ_TITLE} - $$rec{USER_TITLE}",
           body => "Your saved search alert encountered the following error:
 
 $$rec{err_msg}
@@ -597,7 +597,7 @@ Please contact your administrator if you are unable to fix the problem."
           to => $$rec{email_to},
           from => $$rec{email_from} || $opts{email_from},
           'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
-          subject => $$rec{OQ_TITLE},
+          subject => $$rec{OQ_TITLE} - $$rec{USER_TITLE},
           'content-type' => 'text/html; charset="iso-8859-1"'
         );
         $email{subject} .= " ($total_new added)" if $total_new > 0; 
@@ -605,7 +605,7 @@ Please contact your administrator if you are unable to fix the problem."
         $email{body} = 
 "<html>
 <head>
-<title>".escapeHTML($$rec{OQ_TITLE})."</title>
+<title>".escapeHTML("$$rec{OQ_TITLE} - $$rec{USER_TITLE}")."</title>
 <style>
 .OQSSAlert * {
   font-family: sans-serif;
@@ -642,7 +642,7 @@ Please contact your administrator if you are unable to fix the problem."
 </head>
 <body>
 <div class=OQSSAlert>
-<h2>".escapeHTML($$rec{OQ_TITLE})."</h2>
+<h2>".escapeHTML("$$rec{OQ_TITLE} - $$rec{USER_TITLE}")."</h2>
 <p>
 $$rec{buf}
 <p>

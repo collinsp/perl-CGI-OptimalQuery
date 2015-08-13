@@ -17,7 +17,6 @@ demo/execute_saved_search_alerts.pl
 demo/make_test_data.pl
 demo/README
 lib/CGI/OptimalQuery.pm
-lib/CGI/OptimalQuery/AbstractQuery.pm
 lib/CGI/OptimalQuery/AutoActionTool.pm
 lib/CGI/OptimalQuery/Base.pm
 lib/CGI/OptimalQuery/CSV.pm
@@ -74,8 +73,6 @@ LICENSE
 Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP
-MYMETA.json
-MYMETA.yml
 README
 t/001_load.t
 t/002_simpleusage.t

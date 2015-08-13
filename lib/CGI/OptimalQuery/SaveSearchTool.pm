@@ -406,12 +406,19 @@ sub execute_saved_search_alerts {
   }
   die "missing option handler" unless ref($opts{handler}) eq 'CODE';
   my $dbh = $opts{dbh} or die "missing dbh";
+  
   $opts{error_handler} ||= sub {
+    my ($type, @msg) = @_;
     my $dt = strftime "%F %T", localtime $^T;
-    print STDERR join(' ', $dt, @_)."\n";
+    my $msg = join(' ', $dt, lc($type), @msg)."\n";
+    if ($type =~ /^(err|debug)$/i) {
+      print STDERR $msg;
+    } else {
+      print $msg;
+    }
   };
 
-  $opts{error_handler}->("execute_saved_search_alerts started") if $opts{debug};
+  $opts{error_handler}->("info", "execute_saved_search_alerts started") if $opts{debug};
 
   local $CGI::OptimalQuery::CustomOutput::custom_output_handler = \&custom_output_handler;
 
@@ -463,12 +470,12 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
     $sql .= "\nORDER BY id";
     my $sth = $dbh->prepare($sql);
     
-    #$opts{error_handler}->("search for saved searches that need checked. BINDS: ".join(',', @binds)) if $opts{debug};
+    $opts{error_handler}->("debug", "search for saved searches that need checked. BINDS: ".join(',', @binds)) if $opts{debug};
     $sth->execute(@binds);
     while (my $h = $sth->fetchrow_hashref()) { push @recs, $h; }
   }
 
-  #$opts{error_handler}->("found ".scalar(@recs)." saved searches to execute") if $opts{debug};
+  $opts{error_handler}->("debug", "found ".scalar(@recs)." saved searches to execute") if $opts{debug};
 
   # for each saved search that has alerts which need to be checked
   local $current_saved_search = undef;
@@ -481,7 +488,7 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
     $$rec{uids} = \%uids; # contains all the previously seen uids
     $$rec{buf} = ''; # will be populated with a table containing report rows for a simple HTML email
     $$rec{err_msg} = '';
-    $opts{error_handler}->("executing saved search: $$rec{ID}") if $opts{debug};
+    $opts{error_handler}->("info", "executing saved search: $$rec{ID}");
 
     # configure CGI environment
     # construct a query string
@@ -522,7 +529,7 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
     eval {
       $opts{handler}->($rec);
       die "email_to not defined" if $$rec{email_to} eq ''; 
-      #$opts{error_handler}->("after OQ execution uids: ".Dumper(\%uids)) if $opts{debug};
+      $opts{error_handler}->("debug", "after OQ execution uids: ".Dumper(\%uids)) if $opts{debug};
     };
     if ($@) {
       $$rec{err_msg} = $@;
@@ -532,10 +539,10 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
     my @update_uids;
     # if there was an error processing saved search, send user an email
     if ($$rec{err_msg}) {
-      $opts{error_handler}->("Error: $@\n\nsaved search:\n".Dumper($rec)."\n\nENV:\n".Dumper(\%ENV)."\n\n");
+      $opts{error_handler}->("err", "Error: $@\n\nsaved search:\n".Dumper($rec)."\n\nENV:\n".Dumper(\%ENV)."\n\n");
       if ($$rec{email_to}) {
         my %email = (
-         to => $$rec{email_to},
+          to => $$rec{email_to},
           from => $$rec{email_from} || $opts{email_from},
           'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
           subject => "Problem with email alert: $$rec{OQ_TITLE}",
@@ -548,7 +555,13 @@ load report:
 
 Please contact your administrator if you are unable to fix the problem."
         );
-        $sendmail_handler->(%email) or die "could not send email to: $$rec{email_to}";
+
+        if ($opts{debug}) {
+          $opts{error_handler}->("debug", "debug sendmail (not sent): ".Dumper(\%email));
+        } else {
+          $opts{error_handler}->("info", "sending email to: $email{to}; subject: $email{subject}");
+          $sendmail_handler->(%email) or die "could not send email to: $$rec{email_to}";
+        }
       }
     }
 
@@ -568,7 +581,7 @@ Please contact your administrator if you are unable to fix the problem."
           }
         }
       }
-      #$opts{error_handler}->("total_new: $total_new; total_deleted: $total_deleted; total_count: $total_count") if $opts{debug};
+      $opts{error_handler}->("info", "total_new: $total_new; total_deleted: $total_deleted; total_count: $total_count");
 
       my $should_send_email = 1 if
         ( # alert when records are added
@@ -642,8 +655,12 @@ $$rec{buf}
 </body>
 </html>";
 
-        $opts{error_handler}->("sending email to: $email{to}; subject: $email{subject}") if $opts{debug};
-        $sendmail_handler->(%email) or die "could not send email to: $$rec{email_to}";
+        if ($opts{debug}) {
+          $opts{error_handler}->("debug", "debug sendmail (not sent): ".Dumper(\%email));
+        } else {
+          $opts{error_handler}->("info", "sending email to: $email{to}; subject: $email{subject}");
+          $sendmail_handler->(%email) or die "could not send email to: $$rec{email_to}";
+        }
       }
     }
 
@@ -661,21 +678,20 @@ $$rec{buf}
     }
     $sql .= " WHERE id=?";
     push @binds, $$rec{ID};
-    #$opts{error_handler}->("SQL: $sql\nBINDS: ".join(',', @binds)) if $opts{debug};
+    $opts{error_handler}->("debug", "SQL: $sql\nBINDS: ".join(',', @binds)) if $opts{debug};
     my $sth = $dbh->prepare_cached($sql);
     $sth->execute(@binds);
 
     $current_saved_search = undef;
   }
 
-  $opts{error_handler}->("execute_saved_search_alerts done") if $opts{debug};
+  $opts{error_handler}->("info", "execute_saved_search_alerts done");
 }
 
 
 # helper function to execute a script. called from with execute_saved_search_alerts from perl script
 my %COMPILED_FUNCS;
 sub execute_script {
-  my ($fn) = @_;
   my ($fn) = @_;
   if (! exists $COMPILED_FUNCS{$fn}) {
     open my $fh, "<", $fn or die "can't read file $fn; $!";

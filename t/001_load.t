@@ -9,7 +9,6 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 
 use_ok('DBIx::OptimalQuery');
-use_ok('CGI::OptimalQuery::AbstractQuery'); 
 use_ok('CGI::OptimalQuery::AutoActionTool'); 
 use_ok('CGI::OptimalQuery::Base'); 
 use_ok('CGI::OptimalQuery::CSV'); 

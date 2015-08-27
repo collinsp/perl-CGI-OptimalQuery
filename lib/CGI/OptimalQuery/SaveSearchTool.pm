@@ -597,7 +597,7 @@ Please contact your administrator if you are unable to fix the problem."
           to => $$rec{email_to},
           from => $$rec{email_from} || $opts{email_from},
           'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
-          subject => $$rec{OQ_TITLE} - $$rec{USER_TITLE},
+          subject => "$$rec{OQ_TITLE} - $$rec{USER_TITLE}",
           'content-type' => 'text/html; charset="iso-8859-1"'
         );
         $email{subject} .= " ($total_new added)" if $total_new > 0; 

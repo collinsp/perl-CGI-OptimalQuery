@@ -14,6 +14,7 @@ my $dbh = DBI->connect("dbi:SQLite:dbname=db/dat.db","","", { RaiseError => 1, P
 my %schema = (
   'dbh' => $dbh,
   'savedSearchUserID' => 12345,
+  'canSaveDefaultSearches' => 1,
   'title' => 'The People',
   'select' => {
     'U_ID' => ['person', 'person.id', 'SYS ID', { always_select => 1 }],

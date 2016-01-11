@@ -58,6 +58,11 @@ sub on_init {
         user_title => $$o{q}->param('OQsaveSearchTitle'),
         params => $params
       );
+      
+      # does the user want to set this as the default search, and if so do they have permission
+      if($$o{schema}{canSaveDefaultSearches} && $$o{q}->param('save_search_default')) {
+        $rec{is_default} = $$o{q}->param('save_search_default') || 0;
+      }
 
       # is saved search alerts enabled
       if ($$o{schema}{savedSearchAlerts}) {
@@ -128,6 +133,15 @@ sub on_init {
         $$o{dbh}->do("INSERT INTO oq_saved_search (".join(',',@cols).") VALUES (".join(',',@vals).")", undef, @binds);
         $rec{id} ||= $$o{dbh}->last_insert_id("","","","");
       }
+      
+      # ensure only one possible default saved search
+      eval {
+        if($$o{schema}{canSaveDefaultSearches} && defined($rec{is_default}) && $rec{is_default}) {
+          my $stmt = $$o{dbh}->prepare('UPDATE oq_saved_search SET is_default = 0 WHERE id <> ? AND uri = ?');
+          $stmt->execute($rec{id}, $rec{uri});
+        }
+      }; if($@) {}
+      
       $$o{output_handler}->(CGI::header('application/json').encode_json({ status => "ok", msg => "search saved successfully", id => $rec{id} }));
     }; if ($@) {
       my $err = $@;
@@ -221,6 +235,14 @@ sub on_open {
   $buf .= "<p>";
   $buf .= "<button type=button class=OQSaveNewReportBut>save as new</button>" if $$o{q}->param('OQss') ne '';
   $buf .= "<button type=button class=OQSaveReportBut>save</button>";
+  
+  # Default saved search
+  eval {
+    if(defined($$o{schema}{canSaveDefaultSearches}) && $$o{schema}{canSaveDefaultSearches}) {
+      my @is_default_ss = $$o{dbh}->selectrow_array("SELECT is_default FROM oq_saved_search WHERE id = ? AND user_id = ?", undef, scalar($$o{q}->param('OQss')), $$o{schema}{savedSearchUserID});
+      $buf .= "<label class=ckbox><input type=checkbox value=1 id=OQsave_search_default" . ($is_default_ss[0] > 0 ? ' checked' : '') . " />set as default</label>";
+    }
+  };
   return $buf;
 }
 

@@ -647,6 +647,7 @@ Saved Searches are stored in a table in the database pointed to by the database 
     alert_last_dt DATETIME,
     alert_err TEXT,
     alert_uids LONGTEXT,
+    is_default TINYINT(1) NOT NULL DEFAULT 0,
     CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
   );
 
@@ -667,6 +668,7 @@ Saved Searches are stored in a table in the database pointed to by the database 
     alert_last_dt DATE,
     alert_err CLOB,
     alert_uids CLOB,
+    is_default NUMBER DEFAULT 0 NOT NULL,
     CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
   );
   CREATE SEQUENCE s_oq_saved_search;

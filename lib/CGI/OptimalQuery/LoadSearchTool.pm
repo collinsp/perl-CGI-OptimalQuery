@@ -6,6 +6,9 @@ use CGI qw(escapeHTML);
 
 sub on_init {
   my ($o) = @_;
+  
+  # request to load a saved search?
+  my $load_saved_request = 0;
 
   # request to delete a saved search
   if ($$o{q}->param('OQdeleteSavedSearch') =~ /^\d+$/) {
@@ -15,17 +18,26 @@ sub on_init {
     return undef;
   }
 
-  # request to load a saved search?
   elsif ($$o{q}->param('OQLoadSavedSearch') =~ /^\d+$/) {
+    $load_saved_request = $$o{q}->param('OQLoadSavedSearch');
+  }
+  
+  # Load a default save? if nothing is specified to the contrary
+  if(!$load_saved_request && !(defined $$o{q}->param('filter'))) {
+    ($load_saved_request) = $$o{dbh}->selectrow_array("SELECT id FROM oq_saved_search WHERE is_default = 1 AND uri = ?", undef, $$o{schema}{URI});
+  }
+  
+  # This value will be set either by explicit parameter or loaded as the default
+  if($load_saved_request) {
     local $$o{dbh}->{LongReadLen};
     if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
       $$o{dbh}{LongReadLen} = 900000;
-      my ($readLen) = $$o{dbh}->selectrow_array("SELECT dbms_lob.getlength(params) FROM oq_saved_search WHERE id = ?", undef, $$o{q}->param('OQLoadSavedSearch'));
+      my ($readLen) = $$o{dbh}->selectrow_array("SELECT dbms_lob.getlength(params) FROM oq_saved_search WHERE id = ?", undef, $load_saved_request);
       $$o{dbh}{LongReadLen} = $readLen if $readLen > $$o{dbh}{LongReadLen};
     }
     my ($params) = $$o{dbh}->selectrow_array(
       "SELECT params FROM oq_saved_search WHERE id = ?",
-        undef, $$o{q}->param('OQLoadSavedSearch'));
+        undef, $load_saved_request);
     if ($params) {
       $params = eval '{'.$params.'}'; 
       if (ref($params) eq 'HASH') {
@@ -35,7 +47,7 @@ sub on_init {
         }
       }
       # remember saved search ID
-      $$o{q}->param('OQss', $$o{q}->param('OQLoadSavedSearch'));
+      $$o{q}->param('OQss', $load_saved_request);
     }
   }
 }

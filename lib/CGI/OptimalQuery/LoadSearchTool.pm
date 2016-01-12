@@ -4,6 +4,31 @@ use strict;
 use JSON::XS();
 use CGI qw(escapeHTML);
 
+
+sub load_saved_search {
+  my ($o, $id) = @_;
+  local $$o{dbh}{LongReadLen};
+  if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
+    $$o{dbh}{LongReadLen} = 900000;
+    my ($readLen) = $$o{dbh}->selectrow_array("SELECT dbms_lob.getlength(params) FROM oq_saved_search WHERE id = ?", undef, $id);
+    $$o{dbh}{LongReadLen} = $readLen if $readLen > $$o{dbh}{LongReadLen};
+  }
+  my ($params) = $$o{dbh}->selectrow_array(
+    "SELECT params FROM oq_saved_search WHERE id=?", undef, $id);
+  if ($params) {
+    $params = eval '{'.$params.'}'; 
+    if (ref($params) eq 'HASH') {
+      delete $$params{module};
+      while (my ($k,$v) = each %$params) { 
+        $$o{q}->param( -name => $k, -values => $v ); 
+      }
+    }
+    # remember saved search ID
+    $$o{q}->param('OQss', $id);
+  }
+  return undef;
+}
+
 sub on_init {
   my ($o) = @_;
 
@@ -17,26 +42,18 @@ sub on_init {
 
   # request to load a saved search?
   elsif ($$o{q}->param('OQLoadSavedSearch') =~ /^\d+$/) {
-    local $$o{dbh}->{LongReadLen};
-    if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
-      $$o{dbh}{LongReadLen} = 900000;
-      my ($readLen) = $$o{dbh}->selectrow_array("SELECT dbms_lob.getlength(params) FROM oq_saved_search WHERE id = ?", undef, $$o{q}->param('OQLoadSavedSearch'));
-      $$o{dbh}{LongReadLen} = $readLen if $readLen > $$o{dbh}{LongReadLen};
-    }
-    my ($params) = $$o{dbh}->selectrow_array(
-      "SELECT params FROM oq_saved_search WHERE id = ?",
-        undef, $$o{q}->param('OQLoadSavedSearch'));
-    if ($params) {
-      $params = eval '{'.$params.'}'; 
-      if (ref($params) eq 'HASH') {
-        delete $$params{module};
-        while (my ($k,$v) = each %$params) { 
-          $$o{q}->param( -name => $k, -values => $v ); 
-        }
-      }
-      # remember saved search ID
-      $$o{q}->param('OQss', $$o{q}->param('OQLoadSavedSearch'));
-    }
+    load_saved_search($o, $$o{q}->param('OQLoadSavedSearch'));
+  }
+
+  # else if default saved searches are enabled and this isn't intial load, load default saved search if it exists
+  elsif (exists $$o{schema}{canSaveDefaultSearches} && ! defined $$o{q}->param('filter')) {
+    my ($id) = $$o{dbh}->selectrow_array("
+      SELECT id
+      FROM oq_saved_search
+      WHERE is_default=1
+      AND uri=?
+      LIMIT 1", undef, $$o{schema}{URI});
+    load_saved_search($o, $id) if $id;
   }
 }
 

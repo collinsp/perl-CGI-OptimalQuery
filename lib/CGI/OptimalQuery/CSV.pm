@@ -25,7 +25,7 @@ sub output {
     $col =~ s/\"/""/g;
     push @buffer, '"'.$col.'"';
   }
-  $$o{output_handler}->(join(',', @buffer)."\r\n");
+  $$o{output_handler}->(join(',', @buffer)."\n");
 
   # print data
   while (my $rec = $o->sth->fetchrow_hashref()) {
@@ -36,9 +36,11 @@ sub output {
       my $val = $rec->{$col};
       $val = join(', ', @$val) if ref($val) eq 'ARRAY';
       $val =~ s/\"/""/g;
+      $val =~ s/[\r\n]//g;
+      $val =~ s/[^!-~\s]//g;
       push @buffer, '"'.$val.'"';
     }
-    $$o{output_handler}->(join(',', @buffer)."\r\n");
+    $$o{output_handler}->(join(',', @buffer)."\n");
   }
   $o->sth->finish();
   return undef;

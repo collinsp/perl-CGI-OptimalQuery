@@ -271,7 +271,7 @@ $newBut
       $recs_in_buffer = 0;
     }
   }
-  $o->sth->finish();
+  $o->finish();
 
   $buf .= "</tbody></table>\n";
 
@@ -316,6 +316,7 @@ $newBut
   }
 
   $$o{output_handler}->($buf);
+
   return undef;
 }
 

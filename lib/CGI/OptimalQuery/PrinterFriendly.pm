@@ -103,8 +103,9 @@ tbody td {
       $i=0;
     }
   }
+  $o->finish();
+
   $$o{output_handler}->($buf);
-  $o->sth->finish();
   $buf .= "
 </tbody>
 </table>

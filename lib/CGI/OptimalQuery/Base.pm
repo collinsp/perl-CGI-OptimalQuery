@@ -301,6 +301,12 @@ sub get_nice_name    { $_[0]{schema}{select}{$_[1]}[2] }
 sub get_num_usersel_cols { scalar @{$_[0]{show}} }
 sub get_usersel_cols { $_[0]{show} }
 
+sub finish {
+  my ($o) = @_;
+  $$o{sth}->finish() if $$o{sth};
+  undef $$o{sth};
+}
+
 # get the options
 sub get_opts {
   my ($o) = @_; 

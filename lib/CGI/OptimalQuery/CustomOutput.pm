@@ -12,6 +12,7 @@ sub output {
   my $o = shift;
   my $codeRef = $$o{custom_output_handler} || $custom_output_handler;
   $codeRef->($o) if $codeRef;
+  $o->finish();
 }
 
 1;

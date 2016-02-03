@@ -33,7 +33,7 @@ sub output {
 
   $$o{output_handler}->($buf);
 
-  $o->sth->finish();
+  $o->finish();
   return undef;
 }
 

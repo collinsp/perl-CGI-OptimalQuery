@@ -39,7 +39,7 @@ sub output {
     }
     $$o{output_handler}->(join(',', @buffer)."\n");
   }
-  $o->sth->finish();
+  $o->finish();
   return undef;
 }
 

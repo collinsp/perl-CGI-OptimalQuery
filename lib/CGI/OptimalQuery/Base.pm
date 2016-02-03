@@ -116,6 +116,18 @@ sub new {
     # set is_hidden flag if select does not have a nice name assigned
     $$o{oq}{select}{$selectAlias}[3]{is_hidden} = 1
       if ! $$o{oq}{select}{$selectAlias}[2];
+
+    # if no SQL (could be a recview) then disable sort, filter
+    if (! $$o{oq}{select}{$selectAlias}[1]) {
+      $$o{oq}{select}{$selectAlias}[3]{disable_sort} = 1;
+      $$o{oq}{select}{$selectAlias}[3]{disable_filter} = 1;
+    }
+
+    # if a select column has additional select fields specified in options, make sure that the options array is an array
+    if ($$o{oq}{select}{$selectAlias}[3]{select} && ref($$o{oq}{select}{$selectAlias}[3]{select}) ne 'ARRAY') {
+      my @x = split /\ *\,\ */, $$o{oq}{select}{$selectAlias}[3]{select};
+      $$o{oq}{select}{$selectAlias}[3]{select} = \@x;
+    }
   }
 
   # if any fields are passed into on_select, ensure they are always selected
@@ -224,13 +236,30 @@ sub sth {
   my ($o) = @_;
   return $$o{sth} if $$o{sth};
 
+  # show is made up of all the fields that should be selected
+  my @show; {
+    my %show;
+    foreach my $colalias (@{$$o{show}}) {
+      if (ref($$o{schema}{select}{$colalias}[3]{select}) eq 'ARRAY') {
+        $show{$_}=1 for @{ $$o{schema}{select}{$colalias}[3]{select} };
+      }
+      if ($$o{schema}{select}{$colalias}[1]) {
+        $show{$colalias}=1;
+      }
+    }
+    @show = sort keys %show;
+  }
+
   # create & execute SQL statement
   $$o{sth} = $$o{oq}->prepare(
-    show   => $$o{show},
+    show   => \@show,
     filter => $$o{filter},
     hiddenFilter => $$o{hiddenFilter},
     forceFilter => $$o{schema}{forceFilter},
     sort   => $$o{sort} );
+
+  # current fetched row
+  $$o{rec} = undef;
 
   # calculate what the limit is
   # and make sure page, num_pages, rows_page make sense
@@ -271,5 +300,104 @@ sub get_query        { $_[0]{query}     }
 sub get_nice_name    { $_[0]{schema}{select}{$_[1]}[2] }
 sub get_num_usersel_cols { scalar @{$_[0]{show}} }
 sub get_usersel_cols { $_[0]{show} }
+
+# get the options
+sub get_opts {
+  my ($o) = @_; 
+
+  if (! $$o{_opts}) {
+    my $class = ref $o;
+
+    if (exists $$o{schema}{options}{$class}) {
+      $$o{_opts} = $$o{schema}{options}{$class};
+    }
+
+    # remove numerics and try again, this allows for module developers to create upgraded modules that use
+    # backwards compatible options example: InteractiveQuery & InteractiveQuery2
+    elsif ($class =~ s/\d+$// && exists $$o{schema}{options}{$class}) {
+      $$o{_opts} = $$o{schema}{options}{$class};
+    }
+
+    else { 
+      $$o{_opts} = {};
+    }
+  }
+
+  return $$o{_opts};
+}
+
+sub fetch {
+  my ($o) = @_;
+  if ($$o{rec} = $o->sth->fetchrow_hashref()) {
+    my $mutator = $o->get_opts()->{'mutateRecord'};
+    $mutator->($$o{rec}) if ref($mutator) eq 'CODE';
+    $$o{schema}{mutateRecord}->($$o{rec}) if ref($$o{schema}{mutateRecord}) eq 'CODE';
+    return $$o{rec};
+  }
+  return undef;
+}
+
+sub get_val {
+  my ($o, $colAlias) = @_;
+  $o->fetch() unless $$o{rec};
+  my $formatter = $$o{schema}{select}{$colAlias}[3]{formatter} || \&default_formatter;
+  return $formatter->($$o{rec}{$colAlias}, $$o{rec}, $o, $colAlias);
+}
+
+sub get_html_val {
+  my ($o, $colAlias) = @_;
+  $o->fetch() unless $$o{rec};
+  my $formatter = $$o{schema}{select}{$colAlias}[3]{html_formatter} || \&default_html_formatter;
+  return $formatter->($$o{rec}{$colAlias}, $$o{rec}, $o, $colAlias);
+}
+
+sub default_formatter {
+  my ($val) = @_;
+  return (ref($val) eq 'ARRAY') ? join(', ', @$val) : $val;
+}
+
+sub default_html_formatter {
+  my ($val, $rec, $o, $colAlias) = @_;
+  if (! exists $$o{_noEscapeColMap}) {
+    my %noEsc = map { $_ => 1 } @{ $o->get_opts()->{'noEscapeCol'} || [] };
+    $$o{_noEscapeColMap} = \%noEsc;
+  }
+  if ($$o{_noEscapeColMap}{$colAlias}) {
+    $val = join(' ', $val) if ref($val) eq 'ARRAY';
+  } elsif (ref($val) eq 'ARRAY') {
+    $val = join(', ', map { escapeHTML($_) } @$val);
+  } else {
+    $val = escapeHTML($val);
+  }
+  return $val;
+}
+
+sub recview_formatter {
+  my ($val, $rec, $o, $colAlias) = @_;
+
+  my @val;
+  foreach my $colAlias2 (@{ $$o{schema}{select}{$colAlias}[3]{select} }) {
+    my $val2 = default_formatter($$rec{$colAlias2});
+    if ($val2 ne '') {
+      my $label = $$o{schema}{select}{$colAlias2}[2] || $colAlias2;
+      push @val, "$label: $val2";
+    }
+  }
+  return join("\n", @val);
+}
+
+sub recview_html_formatter {
+  my ($val, $rec, $o, $colAlias) = @_;
+
+  my @val;
+  foreach my $colAlias2 (@{ $$o{schema}{select}{$colAlias}[3]{select} }) {
+    my $val2 = $o->get_html_val($colAlias2);
+    if ($val2 ne '') {
+      my $label = $$o{schema}{select}{$colAlias2}[2] || $colAlias2;
+      push @val, "<tr><td>".escapeHTML($label)."</td><td>$val2</td></tr>";
+    }
+  }
+  return $#val > -1 ? "<table class=OQrecview>".join('', @val)."</table>" : '';
+}
 
 1;

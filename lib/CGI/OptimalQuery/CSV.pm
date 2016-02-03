@@ -21,22 +21,19 @@ sub output {
   # print header
   my @buffer;
   foreach my $i (0 .. $#$selCols) {
-    my $col = $o->escape_html($o->get_nice_name($o->get_usersel_cols->[$i]));
+    my $col = $o->get_nice_name($o->get_usersel_cols->[$i]);
     $col =~ s/\"/""/g;
     push @buffer, '"'.$col.'"';
   }
   $$o{output_handler}->(join(',', @buffer)."\n");
 
   # print data
-  while (my $rec = $o->sth->fetchrow_hashref()) {
-    $$o{schema}{mutateRecord}->($rec) if ref($$o{schema}{mutateRecord}) eq 'CODE';
-
+  while (my $rec = $o->fetch()) {
     @buffer = ();
     foreach my $col (@$selCols) {
-      my $val = $rec->{$col};
-      $val = join(', ', @$val) if ref($val) eq 'ARRAY';
+      my $val = $o->get_val($col);
       $val =~ s/\"/""/g;
-      $val =~ s/[\r\n]//g;
+      $val =~ s/[\r\n]+/; /g;
       $val =~ s/[^!-~\s]//g;
       push @buffer, '"'.$val.'"';
     }

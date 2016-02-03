@@ -8,7 +8,7 @@ use CGI();
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.19';
+    $VERSION     = '0.20';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -265,6 +265,21 @@ label describing the field name. If C<undef>, field cannot be selected by user a
 The following KEY/VALUES below describe OPTIONS used by the select configuration.
 
 =over
+
+=item B<< select => [COLALIAS1, COLALIAS2]
+=item B<< select => "COLALIAS1, COLALIAS2"
+
+Define other select fields to be included in executed SQL. These fields can be used in custom formatters including the built in CGI::OptimalQuery::Base::recview_formatter.
+
+=item B<< formatter => sub { my ($val, $rec, $o, $colAlias) = @_; return $val; } >>
+=item B<< html_formatter => sub { my ($val, $rec, $o, $colAlias) = @_; return $val; } >>
+
+Override the default function that is used to output a field value.
+
+=item B<< formatter => \&CGI::OptimalQuery::Base::recview_formatter
+=item B<< html_formatter => \&CGI::OptimalQuery::Base::recview_html_formatter
+
+Built in formatters to display all field/values specified in 'select'.
 
 =item B<< is_hidden => 1 >>
 

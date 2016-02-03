@@ -15,29 +15,23 @@ sub output {
   $title .= '_'.($t[5] + 1900).($t[4] + 1).$t[3].$t[2].$t[1];
 
   $$o{output_handler}->(CGI::header(-type => 'text/xml', -attachment => "$title.xml").
-"<?xml version=\"1.0\"?><OptimalQuery>");
+"<?xml version=\"1.0\"?>\n<OptimalQuery>\n");
+
+  my @userselcols = @{ $o->get_usersel_cols };
+
+  my $buf;
 
   # print data
-  while (my $rec = $o->sth->fetchrow_hashref()) {
-    $$o{schema}{mutateRecord}->($rec) if ref($$o{schema}{mutateRecord}) eq 'CODE';
-
-    $$o{output_handler}->("<record".(($$rec{U_ID})?" id='$$rec{U_ID}'":"").">");
-    foreach my $col (sort keys %$rec) {
-      my $alt = $o->escape_html($$o{schema}{select}{$col}[2]);
-      next if $alt eq '';
-
-      my $val = $rec->{$col};
-      if (ref($val) eq 'ARRAY') {
-        $val = join('', map { "<mval>".$o->escape_html($_)."</mval>" } @$val) 
-      } else {
-        $val = $o->escape_html($val);
-      }
-      
-      $$o{output_handler}->("<$col alt='$alt'>$val</$col>");
+  while (my $rec = $o->fetch()) {
+    $buf .= "<rec id=\"$$rec{U_ID}\">\n";
+    foreach my $col (@userselcols) {
+      $buf .= "  <$col>".$o->escape_html($o->get_val($col))."</$col>\n";
     }
-    $$o{output_handler}->("</record>");
+    $buf .= "</rec>\n";
   }
-  $$o{output_handler}->("</OptimalQuery>");
+  $buf .= "</OptimalQuery>";
+
+  $$o{output_handler}->($buf);
 
   $o->sth->finish();
   return undef;

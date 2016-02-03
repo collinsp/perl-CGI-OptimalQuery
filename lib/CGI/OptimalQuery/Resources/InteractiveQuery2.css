@@ -406,14 +406,14 @@ table.OQdata {
   border-bottom: 1px solid #aaa;
   margin-bottom: 6px;
 }
-table.OQdata tbody tr.odd {
+table.OQdata > tbody > tr:nth-child(odd) {
   background-color: #ccc; 
 }
-table.OQdata td {
+table.OQdata > tbody > tr > td {
   border-left: 1px solid #999;
   padding-left: 6px;
 }
-table.OQdata td.OQdataLCol {
+table.OQdata > tbody > tr > td.OQdataLCol {
   border:0;
   padding: 0;
 }
@@ -421,7 +421,7 @@ td.OQdataLCol * {
   vertical-align: middle;
 }
 
-table.OQdata tbody td {
+table.OQdata > tbody > tr > td {
   max-width: 18em;
   overflow: hidden;
   font-size: 1em;
@@ -431,7 +431,7 @@ table.OQdata td.num,
 table.OQdata td.date {
   text-align: right;
 }
-table.OQdata thead td {
+table.OQdata > thead td {
   text-align: center;
   background-color: #ddd;
   font-size: .8em;
@@ -441,22 +441,22 @@ table.OQdata thead td {
   height: 3em;
   font-weight: bold;
 }
-table.OQdata thead td:hover {
+table.OQdata > thead td:hover {
   background-color: #ffd;
 }
-table.OQdata thead td[data-noselect][data-nosort][data-nosort] {
+table.OQdata > thead td[data-noselect][data-nosort][data-nosort] {
   background-color: #ddd;
   cursor: default;
 }
-table.OQdata td:first-child, 
+table.OQdata > tbody td:first-child, 
 table.OQdata td:last-child {
   width: 1%;
 } 
-table.OQdata thead td:first-child, 
-table.OQdata thead td:last-child {
+table.OQdata > thead td:first-child, 
+table.OQdata > thead td:last-child {
   background-color: #ddd;
 }
-table.OQdata tbody tr.OQupdatedRow td {
+table.OQdata > tbody tr.OQupdatedRow td {
   background-color: #fdd;
 }
 
@@ -629,4 +629,29 @@ label.ckbox:hover {
 
 .OQAddColumnsPanel .ckbox > input {
   margin: 0 4px 0 0;
+}
+
+.OQrecview {
+  margin: 6px;
+  border-radius: 1px;
+  width: 60%;
+}
+.OQrecview td {
+  border: 0;
+  background-color: transparent;
+  font-size: .9em;
+}
+.OQrecview tr + tr td {
+}
+
+.OQrecview td center {
+  text-align: left;
+}
+.OQrecview tr td:first-child {
+  font-weight: bold;
+  text-align: right;
+  color: #333;
+}
+.OQrecview td:first-child:after {
+  content:':';
 }

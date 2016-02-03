@@ -13,13 +13,7 @@ sub escapeHTML {
 sub output {
   my $o = shift;
 
-
-  my %opts;
-  if (exists $$o{schema}{options}{__PACKAGE__}) {
-    %opts = %{$$o{schema}{options}{__PACKAGE__}};
-  } elsif (exists $$o{schema}{options}{'CGI::OptimalQuery::InteractiveQuery'}) {
-    %opts = %{$$o{schema}{options}{'CGI::OptimalQuery::InteractiveQuery'}};
-  }
+  my %opts = %{ $o->get_opts() };
   
   # evalulate code refs
   for (qw(httpHeader htmlFooter htmlHeader OQdocTop
@@ -37,7 +31,6 @@ sub output {
   $opts{disable_filter} ||= 0;
   $opts{disable_select} ||= 0;
   $opts{mutateRecord}   ||= undef;
-  $opts{noEscapeCol}    ||= [];
   $opts{editLink}       ||= undef;
   $opts{htmlExtraHead}  ||= "";
   if (! exists $opts{usePopups}) {
@@ -235,22 +228,8 @@ $newBut
 
   my $recs_in_buffer = 0;
   my $typeMap = $o->{oq}->get_col_types('select');
-  my %noEsc = map { $_ => 1 } @{ $opts{noEscapeCol} };
-  my $odd = 1;
-  while (my $r = $o->sth->fetchrow_hashref()) {
-    $opts{mutateRecord}->($r) if ref($opts{mutateRecord}) eq 'CODE';
-    $$o{schema}{mutateRecord}->($r) if ref($$o{schema}{mutateRecord}) eq 'CODE';
-    my @class;
-    if ($odd) {
-      push @class, 'odd';
-      $odd=0;
-    } else {
-      $odd=1;
-    }
- 
-    $buf .= "<tr";
-    $buf .= " class='".join(' ', @class)."'" if $#class > -1;
-    $buf .= " data-uid='".escapeHTML($$r{U_ID})."'><td class=OQdataLCol>";
+  while (my $r = $o->fetch()) {
+    $buf .= "<tr data-uid='".escapeHTML($$r{U_ID})."'><td class=OQdataLCol>";
     if (ref($opts{OQdataLCol}) eq 'CODE') {
       $buf .= $opts{OQdataLCol}->($r);
     } elsif (ref($opts{buildEditLink}) eq 'CODE') {
@@ -264,23 +243,11 @@ $newBut
     }
     $buf .= "</td>";
     foreach my $col (@{ $o->get_usersel_cols }) {
-      my $val;
-      if (exists $noEsc{$col}) {
-        if (ref($$r{$col}) eq 'ARRAY') {
-          $val = join(' ', @{ $$r{$col} });  
-        } else {
-          $val = $$r{$col};
-        }
-      } elsif (ref($$r{$col}) eq 'ARRAY') {
-        $val = join(', ', map { escapeHTML($_) } @{ $$r{$col} }); 
-      } else {
-        $val = escapeHTML($$r{$col});
-      }
+      my $val = $o->get_html_val($col);
       my $type = $$typeMap{$col} || 'char';
       $buf .= "<td".(($type ne 'char')?" class=$type":"").">$val</td>";
     }
     $buf .= "<td class=OQdataRCol>";
-
     if (ref($opts{OQdataRCol}) eq 'CODE') {
       $buf .= $opts{OQdataRCol}->($r);
     } elsif ($o->{q}->param('on_select') ne '') {

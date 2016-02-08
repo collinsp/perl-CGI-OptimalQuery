@@ -47,7 +47,6 @@ sub new {
   $sth->create_select();
   $sth->create_where();
   $sth->create_order_by();
-  $sth->create_cursors();
 
   return $sth;
 }
@@ -55,52 +54,186 @@ sub new {
 sub get_lo_rec { $_[0]{limit}[0] }
 sub get_hi_rec { $_[0]{limit}[1] }
 
+sub set_limit {
+  my ($sth, $limit) = @_;
+  $$sth{limit} = $limit;
+  return undef;
+}
+
 # execute statement
 # notice that we can't execute other child cursors
 # because their bind params are dependant on
 # their parent cursor value
 sub execute {
-  my $sth = shift;
-  my %args = @_;
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->execute(\n".Dumper(\%args).")\n") if $$sth{oq}{debug};
+  my ($sth) = @_;
+  return undef if $$sth{_already_executed};
+  $$sth{_already_executed}=1;
 
-  my $count = $sth->count();
+  $$sth{oq}{error_handler}->("DEBUG: \$sth->execute()\n") if $$sth{oq}{debug};
+  return undef if $sth->count()==0;
 
-  $args{limit} ||= [];
-  if ($count > 0) {
-    $args{limit}[0] ||= 1;
-    $args{limit}[1] ||= $count;
-    $args{limit}[1] = $count if $args{limit}[1] eq '*';
-    $sth->add_limit_sql($args{limit}[0],$args{limit}[1]);
-  } else {
-    $args{limit} = [0,0];
+  local $$sth{oq}{dbh}{LongReadLen};
+
+  # build SQL for main cursor
+  { my $c = $sth->{cursors}->[0];
+    my @all_deps = (@{$c->{select_deps}}, @{$c->{where_deps}}, @{$c->{order_by_deps}});
+    my ($order) = @{ $sth->{oq}->_order_deps(\@all_deps) }; 
+    my @from_deps; push @from_deps, @$_ for @$order;
+
+    # create from_sql, from_binds
+    # vars prefixed with old_ is used for supported non sql-92 joins
+    my ($from_sql, @from_binds, $old_join_sql, @old_join_binds );
+
+    foreach my $from_dep (@from_deps) {
+      my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[1] };
+      push @from_binds, @binds if @binds;
+
+      # if this is the driving table join
+      if (! $sth->{oq}->{joins}->{$from_dep}->[0]) {
+
+        # alias it if not already aliased in sql
+        $from_sql .= $sql.' ';
+        $from_sql .= "$from_dep" unless $sql =~ /\b$from_dep\s*$/;
+        $from_sql .= "\n";
+      }
+  
+  
+      # if SQL-92 type join?
+      elsif (! defined $sth->{oq}->{joins}->{$from_dep}->[2]) {
+        $from_sql .= $sql."\n";
+      }
+  
+      # old style join
+      else {
+        $from_sql .= ", ".$sql.' '.$from_dep."\n";
+        my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[2] };
+        $old_join_sql .= " AND " if $old_join_sql ne '';
+        $old_join_sql .= $sql;
+        push @old_join_binds, @binds;
+      }
+    }
+  
+  
+    # construct where clause
+    my $where;
+    { my @where;
+      push @where, '('.$old_join_sql.') ' if $old_join_sql;
+      push @where, '('.$c->{where_sql}.') ' if $c->{where_sql};
+      $where = ' WHERE '.join(' AND ', @where) if @where;
+    }
+  
+    # generate sql and bind params
+    $$c{sql} = "SELECT ".join(',', @{ $c->{select_sql} })." FROM $from_sql $where ".
+      (($c->{order_by_sql}) ? "ORDER BY ".$c->{order_by_sql} : '');
+
+    my @binds = (@{ $c->{select_binds} }, @from_binds, @old_join_binds,
+      @{$c->{where_binds}}, @{$c->{order_by_binds}} );
+    $$c{binds} = \@binds;
+
+    # if clobs have been selected, find & set LongReadLen
+    if ($$sth{oq}{dbtype} eq 'Oracle' &&
+        $$sth{'oq'}{'AutoSetLongReadLen'} &&
+        scalar(@{$$c{'selected_lobs'}})) {
+
+      my $maxlenlobsql = "SELECT greatest(".join(',',
+          map { "nvl(max(DBMS_LOB.GETLENGTH($_)),0)" } @{$$c{'selected_lobs'}}
+        ).") FROM (".$$c{'sql'}.")";
+
+      my ($SetLongReadLen) = $$sth{oq}{dbh}->selectrow_array($maxlenlobsql, undef, @{$$c{'binds'}});
+
+      if (! $$sth{oq}{dbh}{LongReadLen} || $SetLongReadLen > $$sth{oq}{dbh}{LongReadLen}) {
+        $$sth{oq}{dbh}{LongReadLen} = $SetLongReadLen;
+      }
+    }
+
+    $sth->add_limit_sql();
   }
 
-  # preserve limit in object
-  $$sth{limit} = $args{limit};
 
-  my $c = $sth->{cursors}->[0];
+  # build children cursors
+  my $cursors = $sth->{cursors};
+  foreach my $i (1 .. $#$cursors) {
+    my $c = $sth->{cursors}->[$i];
+    my $sd = $c->{select_deps};
 
-  # if clobs have been selected, find & set LongReadLen
-  local $sth->{oq}->{dbh}->{'LongReadLen'};
-  if ($$sth{oq}{dbtype} eq 'Oracle' &&
-      $$sth{'oq'}{'AutoSetLongReadLen'} &&
-      scalar(@{$$c{'selected_lobs'}})) {
+    # define sql and binds for joins for this child cursor
+    # in the following vars
+    my ($from_sql, @from_binds, $where_sql, @where_binds );
 
-    my $maxlenlobsql = "SELECT greatest(".join(',',
-        map { "nvl(max(DBMS_LOB.GETLENGTH($_)),0)" } @{$$c{'selected_lobs'}}
-      ).") FROM (".$$c{'sql'}.")";
+    # define vars for child cursor driving table
+    # these are handled differently since we aren't joining in parent deps
+    # they were precomputed in _normalize method when constructing $oq
 
-    my ($SetLongReadLen) = $$sth{oq}{dbh}->selectrow_array($maxlenlobsql, undef, @{$$c{'binds'}});
+    ($from_sql, @from_binds) = 
+      @{ $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{sql} };
+    $where_sql = $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{'join'};
+    my $order_by_sql = '';
+    if ($sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor_order_by}) {
+      $order_by_sql = " ORDER BY ".$sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor_order_by};
+    }
 
-    if (! $$sth{oq}{dbh}{LongReadLen} || $SetLongReadLen > $$sth{oq}{dbh}{LongReadLen}) {
-      $$sth{oq}{dbh}{LongReadLen} = $SetLongReadLen;
+    $from_sql .= "\n";
+
+    # now join in all other deps normally for this cursor
+    foreach my $i (1 .. $#$sd) {
+      my $joinAlias = $sd->[$i];
+
+      my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$joinAlias}->[1] };
+
+      # these will NOT be defined for sql-92 type joins
+      my ($joinWhereSql, @joinWhereBinds) = 
+        @{ $sth->{oq}->{joins}->{$joinAlias}->[2] }
+          if defined $sth->{oq}->{joins}->{$joinAlias}->[2];
+
+      # if SQL-92 type join?
+      if (! defined $joinWhereSql) {
+        $from_sql .= $sql."\n";
+        push @from_binds, @binds;
+      }
+
+      # old style join
+      else {
+        $from_sql .= ",\n$sql $joinAlias";
+        push @from_binds, @binds;
+        if ($joinWhereSql) {
+          $where_sql .= " AND " if $where_sql;
+          $where_sql .= $joinWhereSql;
+        }
+        push @where_binds, @joinWhereBinds;
+      }
+    }
+
+    # build child cursor sql
+    $c->{sql} = "
+SELECT ".join(',', @{ $c->{select_sql} })."
+FROM $from_sql
+WHERE $where_sql 
+$order_by_sql ";
+    $c->{binds} = [ @{ $c->{select_binds} }, @from_binds, @where_binds ]; 
+
+    # if clobs have been selected, find & set LongReadLen
+    if ($$sth{oq}{dbtype} eq 'Oracle' &&
+        $$sth{'oq'}{'AutoSetLongReadLen'} &&
+        scalar(@{$$c{'selected_lobs'}})) {
+      my ($SetLongReadLen) = $$sth{oq}{dbh}->selectrow_array("
+        SELECT greatest(".join(',',
+          map { "nvl(max(DBMS_LOB.GETLENGTH($_)),0)" } @{$$c{'selected_lobs'}}
+        ).")
+        FROM (".$$c{'sql'}.")", undef, @{$$c{'binds'}});
+      if (! $$sth{oq}{dbh}{LongReadLen} || $SetLongReadLen > $$sth{oq}{dbh}{LongReadLen}) {
+        $$sth{oq}{dbh}{LongReadLen} = $SetLongReadLen;
+      }
     }
   }
 
   eval {
-    $$sth{oq}{error_handler}->("DEBUG SQL:\n".$c->{sql}."\n\nBINDS:\n".join(',', @{ $c->{binds} })."\n\n") if $$sth{oq}{debug};
-    $c->{sth} = $sth->{oq}->{dbh}->prepare($c->{sql});
+    my $c;
+
+    # prepare all cursors
+    foreach $c (@$cursors) {
+      $c->{sth} = $sth->{oq}->{dbh}->prepare($c->{sql});
+    }
+    $c = $$cursors[0];
     $c->{sth}->execute( @{ $c->{binds} } );
     my @fieldnames = @{ $$c{select_field_order} };
     my %rec;
@@ -109,17 +242,19 @@ sub execute {
     $c->{bind_hash} = \%rec;
   };
   if ($@) {
-    die "Problem with SQL:\n".$c->{sql}."\nBINDS:\n".join(',',@{ $c->{binds} })."\n$@\n";
+    die "Problem with SQL; $@\n";
   }
+  return undef;
 }
 
 # function to add limit sql
-# $sth->add_limit_sql($lo_limit,$hi_limit);
+# $sth->add_limit_sql()
 sub add_limit_sql {
-  my $sth = shift;
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->add_limit_sql(\n".Dumper(\@_).")\n") if $$sth{oq}{debug};
-  my $lo_limit = shift or die "missing lo_limit";
-  my $hi_limit = shift or die "missing hi_limit";
+  my ($sth) = @_;
+
+  $$sth{oq}{error_handler}->("DEBUG: \$sth->add_limit_sql()\n") if $$sth{oq}{debug};
+  my $lo_limit = $$sth{limit}[0] || 0;
+  my $hi_limit = $$sth{limit}[1] || $sth->count();
   my $c = $sth->{cursors}->[0];
 
   if ($$sth{oq}{dbtype} eq 'Oracle') {
@@ -133,7 +268,7 @@ FROM (
   WHERE rownum <= ?
 ) tablernk2 
 WHERE tablernk2.RANK >= ? ";
-    push @{$$c{binds}}, ( $hi_limit, $lo_limit );
+    push @{$$c{binds}}, ($hi_limit, $lo_limit);
     push @{$$c{select_field_order}}, "DBIXOQRANK";
   }
 
@@ -431,7 +566,6 @@ sub create_where {
     'colAlias' => sub { 
       my $oq = $_[0];
       my $colAlias = $_[3];
-        
       die "could not find colAlias $colAlias" unless exists $$oq{select}{$colAlias};
       my $deps = $$oq{select}{$colAlias}[0];
       my @tmp = @{ $$oq{select}{$colAlias}[3]{filter_sql} || $$oq{select}{$colAlias}[1] };
@@ -823,160 +957,14 @@ sub create_order_by {
   
 
 
-# this is called after
-# cursor structure has been created
-# this method will prepare all children cursors
-# it can not prepare parent cursor because the limit has not been given yet
-sub create_cursors {
-  my $sth = shift;
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->create_cursors()\n") if $$sth{oq}{debug};
-
-  # gather deps for main cursor
-  my $c = $sth->{cursors}->[0];
-  my @all_deps = (@{$c->{select_deps}}, @{$c->{where_deps}}, @{$c->{order_by_deps}});
-  my ($order) = @{ $sth->{oq}->_order_deps(\@all_deps) }; 
-  my @from_deps; push @from_deps, @$_ for @$order;
-
-  # create from_sql, from_binds
-  # vars prefixed with old_ is used for supported non sql-92 joins
-  my ($from_sql, @from_binds, $old_join_sql, @old_join_binds );
-
-
-  foreach my $from_dep (@from_deps) {
-    my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[1] };
-    push @from_binds, @binds if @binds;
-
-    # if this is the driving table join
-    if (! $sth->{oq}->{joins}->{$from_dep}->[0]) {
-
-      # alias it if not already aliased in sql
-      $from_sql .= $sql.' ';
-      $from_sql .= "$from_dep" unless $sql =~ /\b$from_dep\s*$/;
-      $from_sql .= "\n";
-    }
-
-
-    # if SQL-92 type join?
-    elsif (! defined $sth->{oq}->{joins}->{$from_dep}->[2]) {
-      $from_sql .= $sql."\n";
-    }
-
-    # old style join
-    else {
-      $from_sql .= ", ".$sql.' '.$from_dep."\n";
-      my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[2] };
-      $old_join_sql .= " AND " if $old_join_sql ne '';
-      $old_join_sql .= $sql;
-      push @old_join_binds, @binds;
-    }
-  }
-
-
-  # construct where clause
-  my $where;
-  { my @where;
-    push @where, '('.$old_join_sql.') ' if $old_join_sql;
-    push @where, '('.$c->{where_sql}.') ' if $c->{where_sql};
-    $where = ' WHERE '.join(' AND ', @where) if @where;
-  }
-
-  # generate sql and bind params
-  my $sql = "SELECT ".join(',', @{ $c->{select_sql} })." FROM $from_sql $where ".
-    (($c->{order_by_sql}) ? "ORDER BY ".$c->{order_by_sql} : '');
-  my @binds = (@{ $c->{select_binds} }, @from_binds, @old_join_binds,
-    @{$c->{where_binds}}, @{$c->{order_by_binds}} );
-
-  # prepare stmt
-  $c->{sql} = $sql;
-  $c->{binds} = \@binds;
-
-  # prepare other children cursors
-  my $cursors = $sth->{cursors};
-  foreach my $i (1 .. $#$cursors) {
-    my $c = $sth->{cursors}->[$i];
-    my $sd = $c->{select_deps};
-
-    # define sql and binds for joins for this child cursor
-    # in the following vars
-    my ($from_sql, @from_binds, $where_sql, @where_binds );
-
-    # define vars for child cursor driving table
-    # these are handled differently since we aren't joining in parent deps
-    # they were precomputed in _normalize method when constructing $oq
-
-    ($from_sql, @from_binds) = 
-      @{ $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{sql} };
-    $where_sql = $sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor}->{'join'};
-    my $order_by_sql = '';
-    if ($sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor_order_by}) {
-      $order_by_sql = " ORDER BY ".$sth->{oq}->{joins}->{$sd->[0]}->[3]->{new_cursor_order_by};
-    }
-
-    $from_sql .= "\n";
-
-    # now join in all other deps normally for this cursor
-    foreach my $i (1 .. $#$sd) {
-      my $joinAlias = $sd->[$i];
-
-      my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$joinAlias}->[1] };
-
-      # these will NOT be defined for sql-92 type joins
-      my ($joinWhereSql, @joinWhereBinds) = 
-        @{ $sth->{oq}->{joins}->{$joinAlias}->[2] }
-          if defined $sth->{oq}->{joins}->{$joinAlias}->[2];
-
-      # if SQL-92 type join?
-      if (! defined $joinWhereSql) {
-        $from_sql .= $sql."\n";
-        push @from_binds, @binds;
-      }
-
-      # old style join
-      else {
-        $from_sql .= ",\n$sql $joinAlias";
-        push @from_binds, @binds;
-        if ($joinWhereSql) {
-          $where_sql .= " AND " if $where_sql;
-          $where_sql .= $joinWhereSql;
-        }
-        push @where_binds, @joinWhereBinds;
-      }
-    }
-
-    # now prepare SQL for this child cursor
-    $c->{sql} = "
-SELECT ".join(',', @{ $c->{select_sql} })."
-FROM $from_sql
-WHERE $where_sql 
-$order_by_sql ";
-    $c->{binds} = [ @{ $c->{select_binds} }, @from_binds, @where_binds ]; 
-
-    # if clobs have been selected, find & set LongReadLen
-    local $sth->{oq}->{dbh}->{'LongReadLen'};
-    if ($$sth{oq}{dbtype} eq 'Oracle' &&
-        $$sth{'oq'}{'AutoSetLongReadLen'} &&
-        scalar(@{$$c{'selected_lobs'}})) {
-      my ($SetLongReadLen) = $$sth{oq}{dbh}->selectrow_array("
-        SELECT greatest(".join(',',
-          map { "nvl(max(DBMS_LOB.GETLENGTH($_)),0)" } @{$$c{'selected_lobs'}}
-        ).")
-        FROM (".$$c{'sql'}.")", undef, @{$$c{'binds'}});
-      $sth->{oq}->{dbh}->{'LongReadLen'} = $SetLongReadLen
-        if $SetLongReadLen > $sth->{oq}->{dbh}->{'LongReadLen'};
-    }
-
-    $c->{sth} = $sth->{oq}->{dbh}->prepare($c->{sql});
-  }
-  $$sth{oq}{error_handler}->("DEBUG: cursors-\n".Dumper($sth->{cursors})."\n") if $$sth{oq}{debug};
-
-  return undef;
-}
-
-
 # fetch next row or return undef when done
-sub fetchrow_hashref  { 
-  my $sth = shift;
+sub fetchrow_hashref { 
+  my ($sth) = @_;
+  return undef unless $sth->count() > 0;
+  $sth->execute(); # execute if not already existed
+
   $$sth{oq}{error_handler}->("DEBUG: \$sth->fetchrow_hashref()\n") if $$sth{oq}{debug};
+
   my $cursors = $sth->{cursors};
   my $c = $cursors->[0];
 
@@ -1018,14 +1006,16 @@ sub fetchrow_hashref  {
   } else {
     return undef;
   }
-
 }
 
 # finish sth
 sub finish { 
-  my $sth = shift;
+  my ($sth) = @_;
   $$sth{oq}{error_handler}->("DEBUG: \$sth->finish()\n") if $$sth{oq}{debug};
-  $sth->{cursors}->[0]->{sth}->finish();
+  foreach my $c (@{$$sth{cursors}}) {
+    $$c{sth}->finish() if $$c{sth};
+    undef $$c{sth};
+  }
   return undef;
 }
 
@@ -1033,10 +1023,10 @@ sub finish {
 sub count {
   my $sth = shift;
 
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->count()\n") if $$sth{oq}{debug};
-
   # if count is not already defined, define it
   if (! defined $sth->{count}) {
+    $$sth{oq}{error_handler}->("DEBUG: \$sth->count()\n") if $$sth{oq}{debug};
+
     my $c = $sth->{cursors}->[0];
 
     my $drivingTable = $c->{select_deps}->[0];
@@ -1183,14 +1173,7 @@ my $oq = DBIx::OptimalQuery->new(
         my %args = @_;
         return [dep, sql, name] 
       } 
-
-      # for interactive queries
-      html_generator => sub { 
-        my ($q,$prefix) = @_;  
-        return [dep, sql, name];
-      },
       title => "text displayed on interactive filter"
-
     }
   },
 

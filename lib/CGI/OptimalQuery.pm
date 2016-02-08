@@ -183,6 +183,12 @@ CGI::OptimalQuery - dynamic SQL query viewer
     }
   );
 
+  # get the count
+  $oq->get_count();
+
+  # get link back to this report
+  $oq->get_link();
+
   # output view to STDOUT
   $oq->output();
 
@@ -237,6 +243,10 @@ provides OptimalQuery a connection to the database.
 =item B<< show => ['COLALIAS1', 'COLALIAS2'] >>
 
 Default fields to show user when loading OptimalQuery the first time. This can also be set as a CGI param where the value is a comma separated list of column aliases. Example: "[NAME], [DOB]".
+
+=item B<< params => { show => "COLALIAS1,COLALIAS2", filter => "[COLALIAS1]=5", sort => "[COLALIAS1]", queryDescr => "descr here", hiddenFilter => "[COLALIAS1]=5" }
+
+Get user set parameters from this hash instead of CGI params. Useful if you are constructing an OQ that should not be influenced by CGI params.
 
 =item B<< select => { SELECT_ALIAS => [ DEP, SQL, NAME, OPTIONS ], .. } >>
 

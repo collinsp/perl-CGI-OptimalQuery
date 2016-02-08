@@ -158,15 +158,29 @@ sub new {
     $$v{on_init}->($o) if ref($$v{on_init}) eq 'CODE';
   }
 
-  # set default page & rows_page if not already defined
-  $$o{page} ||= $$o{q}->param('page') || 1;
+  # if schema params exist
+  if (ref($$o{schema}{params}) eq 'HASH') {
+    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort )) { 
+      $$o{$k} = $$o{schema}{params}{$k} if exists $$o{schema}{params}{$k};
+    }
+  }
+
+  # else use CGI params
+  else {
+    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort )) { 
+      next unless defined $$o{q}->param($k);
+      $$o{$k} = $$o{q}->param($k);
+    }
+  }
+
+  # use schema defaults when no user defaults are available
+  foreach my $k (qw( show filter hiddenFilter queryDescr sort)) {
+    $$o{$k} = $$o{schema}{$k} unless defined $$o{$k};
+  }
+
   $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
-  $$o{rows_page} ||= $$o{q}->param('rows_page') || $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
-  $$o{show} ||= $$o{q}->param('show') || $$o{schema}{show};
-  $$o{filter}       = (defined $$o{q}->param('filter'))       ? $$o{q}->param('filter')       : $$o{schema}{filter} || '';
-  $$o{hiddenFilter} = (defined $$o{q}->param('hiddenFilter')) ? $$o{q}->param('hiddenFilter') : $$o{schema}{hiddenFilter} || '';
-  $$o{queryDescr}   = (defined $$o{q}->param('queryDescr'))   ? $$o{q}->param('queryDescr')   : $$o{schema}{queryDescr} || '';
-  $$o{sort}         = (defined $$o{q}->param('sort'))         ? $$o{q}->param('sort')         : $$o{schema}{sort} || '';
+  $$o{rows_page} ||= $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
+  $$o{page} ||= 1;
 
   # convert show into array
   if (! ref($$o{show})) {
@@ -282,8 +296,7 @@ sub sth {
     $$o{limit} = [$lo, $hi];
   }
 
-  # execute query
-  $$o{sth}->execute( limit => $$o{limit} );
+  $$o{sth}->set_limit($$o{limit});
 
   return $$o{sth};
 }
@@ -404,6 +417,22 @@ sub recview_html_formatter {
     }
   }
   return $#val > -1 ? "<table class=OQrecview>".join('', @val)."</table>" : '';
+}
+
+sub get_link {
+  my ($o) = @_;
+  my @args;
+  foreach my $k (qw( show filter hiddenFilter queryDescr sort)) {
+    my $v1 = $$o{$k};
+    $v1 = join(',', @$v1) if ref($v1) eq 'ARRAY';
+    my $v2 = $$o{schema}{$k};
+    $v2 = join(',', @$v2) if ref($v2) eq 'ARRAY';
+    push @args, "$k=".CGI::escape($v1) if $v1 ne $v2;
+  }
+  my $rv = $$o{schema}{URI};
+  my $args = join('&', @args);
+  $rv .= '?'.$args if $args;
+  return $rv;
 }
 
 1;

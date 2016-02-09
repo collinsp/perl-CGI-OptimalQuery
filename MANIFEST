@@ -17,11 +17,9 @@ demo/execute_saved_search_alerts.pl
 demo/make_test_data.pl
 demo/README
 lib/CGI/OptimalQuery.pm
-lib/CGI/OptimalQuery/AutoActionTool.pm
 lib/CGI/OptimalQuery/Base.pm
 lib/CGI/OptimalQuery/CSV.pm
 lib/CGI/OptimalQuery/CustomOutput.pm
-lib/CGI/OptimalQuery/EmailMergeTool.pm
 lib/CGI/OptimalQuery/ExportDataTool.pm
 lib/CGI/OptimalQuery/FilterParser.pm
 lib/CGI/OptimalQuery/InteractiveFilter.pm

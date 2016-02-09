@@ -277,19 +277,30 @@ The following KEY/VALUES below describe OPTIONS used by the select configuration
 =over
 
 =item B<< select => [COLALIAS1, COLALIAS2] >>
+
 =item B<< select => "COLALIAS1, COLALIAS2" >>
 
 Define other select fields to be included in executed SQL. These fields can be used in custom formatters including the built in CGI::OptimalQuery::Base::recview_formatter.
 
-=item B<< formatter => sub { my ($val, $rec, $o, $colAlias) = @_; return $val; } >>
-=item B<< html_formatter => sub { my ($val, $rec, $o, $colAlias) = @_; return $val; } >>
+=item B<< formatter => CODEREF >>
 
-Override the default function that is used to output a field value.
+sub {
+  my ($val, $rec, $o, $colAlias) = @_;
+  return $val;
+}
 
-=item B<< formatter => \&CGI::OptimalQuery::Base::recview_formatter >>
-=item B<< html_formatter => \&CGI::OptimalQuery::Base::recview_html_formatter >>
+# Built in formatters to display all field/values specified in 'select' as text.
+\&CGI::OptimalQuery::Base::recview_formatter
 
-Built in formatters to display all field/values specified in 'select'.
+=item B<< html_formatter => CODEREF >>
+
+sub {
+  my ($val, $rec, $o, $colAlias) = @_;
+  return $val;
+}
+
+# Built in formatters to display all field/values specified in 'select' as html.
+\&CGI::OptimalQuery::Base::recview_html_formatter
 
 =item B<< is_hidden => 1 >>
 

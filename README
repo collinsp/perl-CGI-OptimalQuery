@@ -34,6 +34,12 @@ SYNOPSIS
         }
       );
 
+      # get the count
+      $oq->get_count();
+
+      # get link back to this report
+      $oq->get_link();
+
       # output view to STDOUT
       $oq->output();
 
@@ -101,6 +107,13 @@ METHODS
       This can also be set as a CGI param where the value is a comma
       separated list of column aliases. Example: "[NAME], [DOB]".
 
+    params => { show => "COLALIAS1,COLALIAS2", filter => "[COLALIAS1]=5",
+    sort => "[COLALIAS1]", queryDescr => "descr here", hiddenFilter =>
+    "[COLALIAS1]=5" }
+      Get user set parameters from this hash instead of CGI params. Useful
+      if you are constructing an OQ that should not be influenced by CGI
+      params.
+
     select => { SELECT_ALIAS => [ DEP, SQL, NAME, OPTIONS ], .. }
       The select configuration describes what fields from the query can be
       selected, filtered, and sorted.
@@ -126,6 +139,24 @@ METHODS
       OPTIONS (HASHREF | undef)
           The following KEY/VALUES below describe OPTIONS used by the select
           configuration.
+
+          select => [COLALIAS1, COLALIAS2] =item select => "COLALIAS1,
+          COLALIAS2"
+              Define other select fields to be included in executed SQL.
+              These fields can be used in custom formatters including the
+              built in CGI::OptimalQuery::Base::recview_formatter.
+
+          formatter => sub { my ($val, $rec, $o, $colAlias) = @_; return
+          $val; } =item html_formatter => sub { my ($val, $rec, $o,
+          $colAlias) = @_; return $val; }
+              Override the default function that is used to output a field
+              value.
+
+          formatter => \&CGI::OptimalQuery::Base::recview_formatter =item
+          html_formatter =>
+          \&CGI::OptimalQuery::Base::recview_html_formatter
+              Built in formatters to display all field/values specified in
+              'select'.
 
           is_hidden => 1
               hides the select field and data from being viewed by the user.
@@ -224,11 +255,18 @@ METHODS
 
     filter => "[SELECT_COL_ALIAS] like 'foo' AND .."
     hiddenFilter => "[SELECT_COL_ALIAS] like 'foo' AND .."
-      default filters to include on a fresh loaded OptimalQuery. The value
-      is translated to an SQL where clause using the grammar described in
-      the *FILTER GRAMMAR* section. Both filter options can also be set by
-      CGI param. Example: <a href=/Search?filter=".escape_uri("[NAME] like
-      'foo'")
+    forceFilter => "[SELECT_COL_ALIAS] like 'foo' AND .."
+      Filters add SQL to the where clause. If a CGI param called 'filter' or
+      'hiddenFilter' are provided, the CGI param value is used instead. The
+      value of a forceFilter cannot be overridden. Users can manipulate a
+      filter using the filter dialog tool. The hiddenFilter can only be
+      manipulated using the GET param. Filters allow developers and end
+      users to add SQL to the where clause. The filter grammar is described
+      in the *FILTER GRAMMAR* section.
+
+      For example:
+
+        <a href=/Search?filter=".escape_uri("[NAME] like 'foo'")
 
     module => { OverloadModuleLabel => PerlModuleName, .. }
       This is an advanced feature that can help perl guru's change the
@@ -308,6 +346,18 @@ METHODS
       The default rows_page a user has when initially loading
       InteractiveQuery. Can also be set as a CGI param.
 
+    mutateRecord => sub { }
+        $$schema{mutateRecord} = sub {
+          my $rec = shift;
+
+          # add html links to the person record 
+          # if user selected the NAME field
+          if (exists $$rec{NAME}) {
+            $$rec{NAME} = "<A HREF=/PersonRecord?id=$$rec{ID}>".
+              CGI::escapeHTML($$rec{NAME})."</A>";
+          }
+        };
+
     savedSearchUserID => $user_id
       InteractiveQuery can optionally save searches to a database so users
       can revisit them latter. To do this, saved searches are tied to a
@@ -320,6 +370,19 @@ METHODS
       to alert them when records are added, removed, or are present. See the
       "Saved Search Alerts" section for additional details on configuring
       this feature.
+
+    savedSearchAlertMaxRecs => 1000
+      Specify maximum record UIDs to store in saved search alert previously
+      seen uid history. The previously stored list of UIDs is used to
+      determine if a new record has appeared. Don't set this too high - the
+      pks are stored in the saved search table. The default settings allow
+      about 14k of data per saved search. (15 char key size * 1000
+      savedSearchAlertMaxRecs) / 1024 = 14k.
+
+    savedSearchAlertEmailCharLimit => 500000
+      Maximum character limit of saved saerch alert email. If limit is
+      reached, a message appears instructing the user reduce the size by
+      hiding fields or modify filters. The default value is 500000 (~ .5MB)
 
     sort => "[COLALIAS1] DESC, [COLALIAS2]"
       Default sort to show user when loading OptimalQuery for the first
@@ -484,6 +547,7 @@ SAVED SEARCHES
         alert_last_dt DATETIME,
         alert_err TEXT,
         alert_uids LONGTEXT,
+        is_default TINYINT(1) NOT NULL DEFAULT 0,
         CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
       );
 
@@ -496,7 +560,7 @@ SAVED SEARCHES
         user_title VARCHAR2(1000) NOT NULL,
         params CLOB,
         -- 0:disabled, 1:added, 2:removed, 4:present
-        alert_mask NUMBER NOT NULL DEFAULT 0,
+        alert_mask NUMBER DEFAULT 0 NOT NULL,
         alert_interval_min NUMBER,
         alert_dow VARCHAR2(7),
         alert_start_hour NUMBER,
@@ -504,6 +568,7 @@ SAVED SEARCHES
         alert_last_dt DATE,
         alert_err CLOB,
         alert_uids CLOB,
+        is_default NUMBER DEFAULT 0 NOT NULL,
         CONSTRAINT unq_oq_saved_search UNIQUE (user_id,uri,oq_title,user_title)
       );
       CREATE SEQUENCE s_oq_saved_search;

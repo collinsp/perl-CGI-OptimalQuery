@@ -244,7 +244,7 @@ provides OptimalQuery a connection to the database.
 
 Default fields to show user when loading OptimalQuery the first time. This can also be set as a CGI param where the value is a comma separated list of column aliases. Example: "[NAME], [DOB]".
 
-=item B<< params => { show => "COLALIAS1,COLALIAS2", filter => "[COLALIAS1]=5", sort => "[COLALIAS1]", queryDescr => "descr here", hiddenFilter => "[COLALIAS1]=5" }
+=item B<< params => { show => "COLALIAS1,COLALIAS2", filter => "[COLALIAS1]=5", sort => "[COLALIAS1]", queryDescr => "descr here", hiddenFilter => "[COLALIAS1]=5" } >>
 
 Get user set parameters from this hash instead of CGI params. Useful if you are constructing an OQ that should not be influenced by CGI params.
 
@@ -276,8 +276,8 @@ The following KEY/VALUES below describe OPTIONS used by the select configuration
 
 =over
 
-=item B<< select => [COLALIAS1, COLALIAS2]
-=item B<< select => "COLALIAS1, COLALIAS2"
+=item B<< select => [COLALIAS1, COLALIAS2] >>
+=item B<< select => "COLALIAS1, COLALIAS2" >>
 
 Define other select fields to be included in executed SQL. These fields can be used in custom formatters including the built in CGI::OptimalQuery::Base::recview_formatter.
 
@@ -286,8 +286,8 @@ Define other select fields to be included in executed SQL. These fields can be u
 
 Override the default function that is used to output a field value.
 
-=item B<< formatter => \&CGI::OptimalQuery::Base::recview_formatter
-=item B<< html_formatter => \&CGI::OptimalQuery::Base::recview_html_formatter
+=item B<< formatter => \&CGI::OptimalQuery::Base::recview_formatter >>
+=item B<< html_formatter => \&CGI::OptimalQuery::Base::recview_html_formatter >>
 
 Built in formatters to display all field/values specified in 'select'.
 

@@ -448,13 +448,10 @@ table.OQdata > thead td[data-noselect][data-nosort][data-nosort] {
   background-color: #ddd;
   cursor: default;
 }
-table.OQdata > tbody td:first-child, 
-table.OQdata td:last-child {
-  width: 1%;
-} 
 table.OQdata > thead td:first-child, 
 table.OQdata > thead td:last-child {
   background-color: #ddd;
+  width: 1%;
 }
 table.OQdata > tbody tr.OQupdatedRow td {
   background-color: #fdd;
@@ -499,6 +496,23 @@ table.OQdata > tbody tr.OQupdatedRow td {
 
 a.OQeditBut, a.OQnewBut {
   display: inline-block;
+}
+
+.OQRecViewCmds {
+  position: relative;
+  height: 0;
+}
+.OQRecViewCmds .OQAddColumnsBut {
+  padding: 10px;
+  padding-left: 34px;
+  color: black;
+  border-bottom: 1px solid #ddd;
+  background-repeat: no-repeat;
+  background-position: 6px 6px;
+  text-align: left;
+  position: absolute;
+  top: -50px;
+  right: 4px;
 }
 
 .OQnewBut,.OQrefreshBut,.OQToolsBut,.OQeditBut,.OQselectBut,.OQhelpBut {
@@ -634,17 +648,17 @@ label.ckbox:hover {
 .OQrecview {
   margin: 6px;
   border-radius: 1px;
-  width: 60%;
 }
 .OQrecview td {
   border: 0;
   background-color: transparent;
   font-size: .9em;
+  width: auto !important;
 }
 .OQrecview tr + tr td {
 }
 
-.OQrecview td center {
+.OQrecview td * {
   text-align: left;
 }
 .OQrecview tr td:first-child {
@@ -654,4 +668,14 @@ label.ckbox:hover {
 }
 .OQrecview td:first-child:after {
   content:':';
+}
+.OQrecviewLabel {
+  font-weight: bold;
+  margin-top: 6px;
+}
+.OQrecviewVal {
+  margin-left: 6px;
+}
+.OQrecviewVal * {
+  text-align: left;
 }

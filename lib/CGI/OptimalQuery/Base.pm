@@ -160,23 +160,26 @@ sub new {
 
   # if schema params exist
   if (ref($$o{schema}{params}) eq 'HASH') {
-    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort )) { 
+    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort mode )) { 
       $$o{$k} = $$o{schema}{params}{$k} if exists $$o{schema}{params}{$k};
     }
   }
 
   # else use CGI params
   else {
-    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort )) { 
+    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort mode )) { 
       next unless defined $$o{q}->param($k);
       $$o{$k} = $$o{q}->param($k);
     }
   }
 
   # use schema defaults when no user defaults are available
-  foreach my $k (qw( show filter hiddenFilter queryDescr sort)) {
+  foreach my $k (qw( show filter hiddenFilter queryDescr sort mode)) {
     $$o{$k} = $$o{schema}{$k} unless defined $$o{$k};
   }
+
+  $$o{mode} ||= 'default';
+  $$o{mode} =~ s/\W//g;
 
   $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
   $$o{rows_page} ||= $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;

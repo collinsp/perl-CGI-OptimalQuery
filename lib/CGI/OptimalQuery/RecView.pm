@@ -153,12 +153,10 @@ $script
       $buf .= "</ul><button class=OQToolsCancelBut type=button>&#10005;</button></div></div></div>";
     }
   }
-
   $buf .= "
-<form class='OQform mode-$$o{mode}' name=OQform action='".escapeHTML($$o{schema}{URI_standalone}||$$o{schema}{URI})."' method=get>
+<form class=OQform name=OQform action='".escapeHTML($$o{schema}{URI_standalone}||$$o{schema}{URI})."' method=get>
 <input type=hidden name=show value='".escapeHTML(join(',',@{$$o{show}}))."'>
 <input type=hidden name=filter value='".escapeHTML($$o{filter})."'>
-<input type=hidden name=mode value='".escapeHTML($$o{mode})."'>
 <input type=hidden name=hiddenFilter value='".escapeHTML($$o{hiddenFilter})."'>
 <input type=hidden name=queryDescr value='".escapeHTML($$o{queryDescr})."'>
 <input type=hidden name=sort value='".escapeHTML($$o{'sort'})."'>
@@ -179,7 +177,6 @@ $script
   .$o->commify($o->get_hi_rec).") of ".$o->commify($o->get_count)."</div>
 <div class=OQcmds>
 $newBut
-
 <button type=button title='refresh data' class=OQrefreshBut>refresh</button>
 <button type=button title='tools' class=OQToolsBut>tools</button>
 <button type=button title='help' class=OQhelpBut>help</button>
@@ -209,19 +206,9 @@ $newBut
     }
     $buf .= "</tr>";
   }
-
-  $buf .= "</table>";
-
-
-  if ($$o{mode} eq 'recview') {
-    $buf .= "<div class=OQRecViewCmds><button type=button class=OQAddColumnsBut>columns</button></div>";
-  }
-
-  $buf .= "<table class=OQdata>";
-
-  if ($$o{mode} eq 'recview') {
-  } else {
-    $buf .= "
+  $buf .= 
+"</table>
+<table class=OQdata>
 <thead title='click to hide, sort, filter, or add columns'>
 <tr>
 <td class=OQdataLHead></td>";
@@ -236,10 +223,7 @@ $newBut
   $buf .= "
 <td class=OQdataRHead></td>
 </tr>
-</thead>";
-  }
-
-  $buf .= "
+</thead>
 <tbody>\n";
 
   my $recs_in_buffer = 0;
@@ -258,25 +242,10 @@ $newBut
       $buf .= "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".$opts{editButtonLabel}."</a>";
     }
     $buf .= "</td>";
-
-    if ($$o{mode} eq 'recview') {
-      $buf .= "<td>";
-      foreach my $col (@{ $o->get_usersel_cols }) {
-        my $val = $o->get_html_val($col);
-        if ($val ne '') {
-          my $label = $o->get_nice_name($col);
-          $buf .= "<div class=OQrecviewLabel>".escapeHTML($label).":</div><div class=OQrecviewVal>$val</div>";
-        }
-      }
-      $buf .= "</td>";
-    }
-
-    else {
-      foreach my $col (@{ $o->get_usersel_cols }) {
-        my $val = $o->get_html_val($col);
-        my $type = $$typeMap{$col} || 'char';
-        $buf .= "<td".(($type ne 'char')?" class=$type":"").">$val</td>";
-      }
+    foreach my $col (@{ $o->get_usersel_cols }) {
+      my $val = $o->get_html_val($col);
+      my $type = $$typeMap{$col} || 'char';
+      $buf .= "<td".(($type ne 'char')?" class=$type":"").">$val</td>";
     }
     $buf .= "<td class=OQdataRCol>";
     if (ref($opts{OQdataRCol}) eq 'CODE') {

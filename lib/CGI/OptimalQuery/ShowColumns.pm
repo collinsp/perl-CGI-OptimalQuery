@@ -13,7 +13,7 @@ sub output {
 <html>
 <body>
 <div class=OQAddColumnsPanel>
-<h1>select fields to add ..</h1>";
+<h2>select fields to add ..</h2>";
   my $s = $$o{schema}{select};
   my @c = sort { $$s{$a}[2] cmp $$s{$b}[2] } keys %$s;
   foreach my $colAlias (@c) {
@@ -24,7 +24,14 @@ sub output {
       unless $label eq '' || $$colOpts{disable_select} || $$colOpts{is_hidden};
   }
   $buf .= "
-<br>
+<p>
+<label>display as:
+<select id=ShowColumnsDisplayAs>
+  <option value=default>table rows
+  <option value=recview".(($$o{q}->param('mode') eq 'recview')?" selected":"").">records
+</select>
+</label>
+<p>
 <button class=OQAddColumnsCancelBut>cancel</button>
 <button class=OQAddColumnsOKBut>ok</button>
 </div>

@@ -31,6 +31,7 @@ lib/CGI/OptimalQuery/LoadSearchTool.pm
 lib/CGI/OptimalQuery/OQFilterParser.grammar
 lib/CGI/OptimalQuery/OQFilterParser.pm
 lib/CGI/OptimalQuery/PrinterFriendly.pm
+lib/CGI/OptimalQuery/RecView.pm
 lib/CGI/OptimalQuery/Resources/add.gif
 lib/CGI/OptimalQuery/Resources/add_col.gif
 lib/CGI/OptimalQuery/Resources/arrow-left-3.png

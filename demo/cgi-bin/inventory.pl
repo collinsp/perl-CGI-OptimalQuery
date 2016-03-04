@@ -15,6 +15,7 @@ my %schema = (
   'dbh' => $dbh,
   'savedSearchUserID' => 12345,
   'title' => 'The Inventory',
+debug => 1,
   'canSaveDefaultSearches' => 1,
   'select' => {
     'U_ID' => ['inventory', 'inventory.id', 'SYS ID', { always_select => 1 }],

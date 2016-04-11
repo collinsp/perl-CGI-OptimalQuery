@@ -39,7 +39,7 @@ sub new {
   my $oq = shift;
   my %args = @_;
 
-  $$oq{error_handler}->("DEBUG: \$sth = $class->new(\$oq,\n".Dumper(\%args).")\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$sth = $class->new(\$oq,\n".Dumper(\%args).")\n") if $$oq{debug};
 
   my $sth = bless \%args, $class;
   $sth->{oq} = $oq;
@@ -69,7 +69,7 @@ sub execute {
   return undef if $$sth{_already_executed};
   $$sth{_already_executed}=1;
 
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->execute()\n") if $$sth{oq}{debug};
+  #$$sth{oq}{error_handler}->("DEBUG: \$sth->execute()\n") if $$sth{oq}{debug};
   return undef if $sth->count()==0;
 
   local $$sth{oq}{dbh}{LongReadLen};
@@ -119,7 +119,7 @@ sub execute {
     { my @where;
       push @where, '('.$old_join_sql.') ' if $old_join_sql;
       push @where, '('.$c->{where_sql}.') ' if $c->{where_sql};
-      $where = ' WHERE '.join(' AND ', @where) if @where;
+      $where = ' WHERE '.join("\nAND ", @where) if @where;
     }
   
     # generate sql and bind params
@@ -231,6 +231,7 @@ $order_by_sql ";
 
     # prepare all cursors
     foreach $c (@$cursors) {
+      $$sth{oq}->{error_handler}->("SQL:\n".$c->{sql}."\nBINDS:\n".Dumper($c->{binds})."\n") if $$sth{oq}{debug}; 
       $c->{sth} = $sth->{oq}->{dbh}->prepare($c->{sql});
     }
     $c = $$cursors[0];
@@ -252,7 +253,7 @@ $order_by_sql ";
 sub add_limit_sql {
   my ($sth) = @_;
 
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->add_limit_sql()\n") if $$sth{oq}{debug};
+  #$$sth{oq}{error_handler}->("DEBUG: \$sth->add_limit_sql()\n") if $$sth{oq}{debug};
   my $lo_limit = $$sth{limit}[0] || 0;
   my $hi_limit = $$sth{limit}[1] || $sth->count();
   my $c = $sth->{cursors}->[0];
@@ -327,7 +328,7 @@ WHERE tablernk2.RANK >= ? ";
 # normalize member variables
 sub _normalize {
   my $sth = shift;
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->_normalize()\n") if $$sth{oq}{debug};
+  #$$sth{oq}{error_handler}->("DEBUG: \$sth->_normalize()\n") if $$sth{oq}{debug};
 
   # if show is not defined - then define it
   if (! exists $sth->{show}) {
@@ -353,7 +354,7 @@ sub _normalize {
 # define @select & @select_binds, and add deps
 sub create_select {
   my $sth = shift;
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->create_select()\n") if $$sth{oq}{debug};
+  #$$sth{oq}{error_handler}->("DEBUG: \$sth->create_select()\n") if $$sth{oq}{debug};
 
   
   # find all of the columns that need to be shown
@@ -524,7 +525,7 @@ sub _get_sub_cursor_template {
 sub create_where { 
   my $sth = shift;
 
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->create_where()\n") if $$sth{oq}{debug};
+  #$$sth{oq}{error_handler}->("DEBUG: \$sth->create_where()\n") if $$sth{oq}{debug};
   return undef if $sth->{'filter'} eq '' && $sth->{'hiddenFilter'} eq '' && $sth->{'forceFilter'} eq '';
 
   # this sub glues together a parsed expression
@@ -555,7 +556,7 @@ sub create_where {
 
   my %translations = (
     '*default*' => sub { $_[2] },
-
+    'logicOp' => sub { "\n$_[2]" },
     'compOp' => sub { 
       my $rv = { name => lc($_[2]), sql => uc($_[2]) };
       if (uc($_[2]) eq 'CONTAINS') { $$rv{sql} = 'LIKE'; }
@@ -601,16 +602,59 @@ sub create_where {
       my $rule = shift;
       my @token = @_;
 
-      # if this is a comparison to null / not null
+      # if doing empty string comparison
       if ($token[2]{sql} eq '?' && $token[2]{binds}[0] eq '') {
-        pop @token; # remove the last token
+        my $t0 = $oq->get_col_type($token[0]{colAlias},'filter');
         my $op = $token[1]{sql};
-        if ($op =~ /NOT\ /i || $op =~ /\!/) {
-          $token[1]{sql} = 'is not null';
-          $token[1]{name} = 'is defined';
-        } else {
-          $token[1]{sql} = 'is null';
-          $token[1]{name} = 'is undefined';
+
+
+        # if character field coalesce to empty string
+        if ($t0 eq 'char' || $t0 eq 'clob') {
+          # oracle treats empty string as null so coalesce null to '_ _'
+          if ($$oq{dbtype} eq 'Oracle') {
+            if ($op =~ /NOT\ /i || $op =~ /\!/) {
+              $token[0]{sql} = "COALESCE(TO_CHAR($token[0]{sql}),'_ _')";
+              $token[1]{sql} = '!=';
+              $token[1]{name} = '!=';
+              $token[2]{binds}[0] = '_ _';
+              $token[2]{name} = '""';
+            } else {
+              $token[0]{sql} = "COALESCE(TO_CHAR($token[0]{sql}),'_ _')";
+              $token[1]{sql} = '=';
+              $token[1]{name} = '=';
+              $token[2]{binds}[0] = '_ _';
+              $token[2]{name} = '""';
+            }
+          }
+          else {
+            if ($op =~ /NOT\ /i || $op =~ /\!/) {
+              $token[0]{sql} = "COALESCE($token[0]{sql},'')";
+              $token[1]{sql} = '!=';
+              $token[1]{name} = '!=';
+              $token[2]{binds}[0] = '';
+              $token[2]{name} = '""';
+            } else {
+              $token[0]{sql} = "COALESCE($token[0]{sql},'')";
+              $token[1]{sql} = '=';
+              $token[1]{name} = '=';
+              $token[2]{binds}[0] = '';
+              $token[2]{name} = '""';
+            }
+          }
+        }
+
+        # else not char data so use IS NULL / IS NOT NULL operator
+        else {
+          pop @token;
+          if ($op =~ /NOT\ /i || $op =~ /\!/) {
+            $token[1]{sql} = "IS NOT NULL";
+            $token[1]{name} = '!=';
+            $token[2] = { name => '""' };
+          } else {
+            $token[1]{sql} = "IS NULL";
+            $token[1]{name} = '=';
+            $token[2] = { name => '""' };
+          }
         }
       }
 
@@ -696,6 +740,13 @@ sub create_where {
           $token[2]{binds}[0] = $v;
           $token[2]{name} = $v;
         }
+
+        # if numeric operator and field is an oracle clob, convert using to_char
+        elsif ($token[1]{sql} =~ /\=|\<|\>/ &&
+          $$oq{dbtype} eq 'Oracle' &&
+          $oq->get_col_type($token[0]{colAlias},'filter') eq 'clob') {
+          $token[0]{sql} = "to_char(".$token[0]{sql}.")";
+        }
       }
 
       # if this field comes from a dep with new_cursor => 1
@@ -748,16 +799,26 @@ sub create_where {
             die "could not parse for corelated join";
           }
 
-          if ($token[1]{sql} =~ s/\bNOT\b//) {
-            $preSql .= 'NOT ';
-          } elsif ($token[1]{sql} eq '!=') {
-            $token[1]{sql} = '=';
-            $preSql .= 'NOT ';
-          } elsif ($token[1]{sql} eq 'is null' ) {
-            $token[1]{sql} = 'is not null';
-            $preSql .= 'NOT ';
+          # in a one2many filter that has a negative operator, we need to use
+          # a NOT EXISTS and unnegate the operator
+          if ($token[2]{name} eq '""') {
+            if ($token[1]{sql} eq '=') {
+              $preSql .= "NOT ";
+              $token[1]{sql} = '!=';
+            }
+            elsif ($token[1]{sql} eq 'IS NULL') {
+              $preSql .= "NOT ";
+              $token[1]{sql} = 'IS NOT NULL';
+            }
           }
-          $preSql  .= 'EXISTS ( SELECT 1 FROM '.$fromSql.' WHERE ('.$corelatedJoin.') AND ';
+          elsif ($token[1]{sql} eq '!=') {
+            $token[1]{sql} = '=';
+            $preSql .= "NOT ";
+          }
+          elsif ($token[1]{sql} =~ s/NOT\ //) {
+            $preSql .= "NOT ";
+          }
+          $preSql .= "EXISTS (\n  SELECT 1\n  FROM $fromSql\n  WHERE ($corelatedJoin)\n  AND ";
           $postSql .= ')';
           push @preBinds, @fromBinds;
         }
@@ -769,7 +830,6 @@ sub create_where {
         # add new pre/post sql tokens
         unshift @token, { sql => $preSql, name => '' };
         push @token, { sql => $postSql, name => '' };
-
       }
 
       return $glue_exp->(@token);
@@ -826,7 +886,7 @@ sub create_where {
     my $hiddenFilter = $$sth{oq}->parse($DBIx::OptimalQuery::filterGrammar, $sth->{'hiddenFilter'}, \%translations)
       or die "could not parse hiddenFilter: ".$sth->{'hiddenFilter'};
     push @{ $c->{where_deps} }, @{ $$hiddenFilter{deps} };
-    $c->{where_sql}  = '('.$c->{where_sql}.') AND ' if $c->{where_sql} ne '';
+    $c->{where_sql}  = '('.$c->{where_sql}.")\nAND " if $c->{where_sql} ne '';
     $c->{where_sql}  .= '('.$$hiddenFilter{sql}.')';
     push @{ $c->{where_binds} }, @{ $$hiddenFilter{binds} };
   }
@@ -836,7 +896,7 @@ sub create_where {
     my $forceFilter = $$sth{oq}->parse($DBIx::OptimalQuery::filterGrammar, $sth->{'forceFilter'}, \%translations)
       or die "could not parse forceFilter: ".$sth->{'forceFilter'};
     push @{ $c->{where_deps} }, @{ $$forceFilter{deps} };
-    $c->{where_sql}  = '('.$c->{where_sql}.') AND ' if $c->{where_sql} ne '';
+    $c->{where_sql}  = '('.$c->{where_sql}.")\nAND " if $c->{where_sql} ne '';
     $c->{where_sql}  .= '('.$$forceFilter{sql}.')';
     push @{ $c->{where_binds} }, @{ $$forceFilter{binds} };
   }
@@ -852,7 +912,7 @@ sub create_order_by {
   my $sth = shift;
 
   if ($sth->{'sort'} ne '') {
-    $$sth{oq}{error_handler}->("DEBUG: \$sth->create_order_by()\n") if $$sth{oq}{debug};
+    #$$sth{oq}{error_handler}->("DEBUG: \$sth->create_order_by()\n") if $$sth{oq}{debug};
     my %translations = (
       '*default*' => sub { $_[2] },
 
@@ -963,7 +1023,7 @@ sub fetchrow_hashref {
   return undef unless $sth->count() > 0;
   $sth->execute(); # execute if not already existed
 
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->fetchrow_hashref()\n") if $$sth{oq}{debug};
+  #$$sth{oq}{error_handler}->("DEBUG: \$sth->fetchrow_hashref()\n") if $$sth{oq}{debug};
 
   my $cursors = $sth->{cursors};
   my $c = $cursors->[0];
@@ -1011,7 +1071,7 @@ sub fetchrow_hashref {
 # finish sth
 sub finish { 
   my ($sth) = @_;
-  $$sth{oq}{error_handler}->("DEBUG: \$sth->finish()\n") if $$sth{oq}{debug};
+  #$$sth{oq}{error_handler}->("DEBUG: \$sth->finish()\n") if $$sth{oq}{debug};
   foreach my $c (@{$$sth{cursors}}) {
     $$c{sth}->finish() if $$c{sth};
     undef $$c{sth};
@@ -1025,7 +1085,7 @@ sub count {
 
   # if count is not already defined, define it
   if (! defined $sth->{count}) {
-    $$sth{oq}{error_handler}->("DEBUG: \$sth->count()\n") if $$sth{oq}{debug};
+    #$$sth{oq}{error_handler}->("DEBUG: \$sth->count()\n") if $$sth{oq}{debug};
 
     my $c = $sth->{cursors}->[0];
 
@@ -1075,7 +1135,7 @@ sub count {
     { my @where;
       push @where, '('.$old_join_sql.') ' if $old_join_sql;
       push @where, '('.$c->{where_sql}.') ' if $c->{where_sql};
-      $where = 'WHERE '.join(' AND ', @where) if @where;
+      $where = 'WHERE '.join("\nAND ", @where) if @where;
     }
 
     # generate sql and bind params
@@ -1089,6 +1149,7 @@ FROM (
     my @binds = (@from_binds, @old_join_binds, @{$c->{where_binds}});
 
     eval {
+      $$sth{oq}->{error_handler}->("SQL:\n$sql\nBINDS:\n".Dumper(\@binds)."\n") if $$sth{oq}{debug}; 
       ($sth->{count}) = $sth->{oq}->{dbh}->selectrow_array($sql, undef, @binds);
     }; if ($@) {
       die "Problem finding count for SQL:\n$sql\nBINDS:\n".join(',',@binds)."\n\n$@\n";
@@ -1198,8 +1259,8 @@ sub new {
   my %args = @_;
   my $oq = bless \%args, $class;
 
-  $$oq{debug} || 0;
-  $$oq{error_handler}->("DEBUG: $class->new(".Dumper(\%args).")\n") if $$oq{debug};
+  $$oq{debug} ||= 0;
+  #$$oq{error_handler}->("DEBUG: $class->new(".Dumper(\%args).")\n") if $$oq{debug};
 
   die "BAD_PARAMS - must provide a dbh!"
     unless $oq->{'dbh'};
@@ -1322,7 +1383,7 @@ sub parse {
 # normalize member variables
 sub _normalize {
   my $oq = shift;
-  $$oq{error_handler}->("DEBUG: \$oq->_normalize()\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$oq->_normalize()\n") if $$oq{debug};
 
   $oq->{'AutoSetLongReadLen'} = 1 unless exists $oq->{'AutoSetLongReadLen'};
 
@@ -1421,7 +1482,7 @@ sub _formulate_new_cursor {
   my $oq = shift;
   my $joinAlias = shift; 
 
-  $$oq{error_handler}->("DEBUG: \$oq->_formulate_new_cursor('$joinAlias')\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$oq->_formulate_new_cursor('$joinAlias')\n") if $$oq{debug};
 
   # vars to define
   my (@keys, $join, $sql, @sqlBinds);
@@ -1521,7 +1582,7 @@ sub _formulate_new_cursor {
 sub check_join_counts {
   my $oq = shift;
 
-  $$oq{error_handler}->("DEBUG: \$oq->check_join_counts()\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$oq->check_join_counts()\n") if $$oq{debug};
 
 
   # since driving table count is computed first this will get set first
@@ -1558,7 +1619,7 @@ sub check_join_counts {
       }
     }
 
-    my $where = 'WHERE '.join(' AND ', @whereSql) if @whereSql;
+    my $where = 'WHERE '.join("\nAND ", @whereSql) if @whereSql;
 
     my $sql = "
 SELECT count(*)
@@ -1622,7 +1683,7 @@ sub get_col_type {
   my $oq = shift;
   my $alias = shift;
   my $context = shift || 'default';
-  $$oq{error_handler}->("DEBUG: \$oq->get_col_type($alias, $context)\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$oq->get_col_type($alias, $context)\n") if $$oq{debug};
 
   return $oq->{'select'}->{$alias}->[3]->{'col_type'} ||
          $oq->get_col_types($context)->{$alias};
@@ -1633,7 +1694,7 @@ sub get_col_type {
 sub get_col_types {
   my $oq = shift;
   my $context = shift || 'default';
-  $$oq{error_handler}->("DEBUG: \$oq->get_col_types($context)\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$oq->get_col_types($context)\n") if $$oq{debug};
   return $oq->{'col_types'}->{$context} 
     if defined $oq->{'col_types'};
 
@@ -1718,7 +1779,8 @@ sub get_col_types {
 
     }
 
-    my $where = ' AND ' if @where;
+    my $where;
+    $where .= "\nAND " if $#where > -1;
     $where .= join("\nAND ", @where);
 
     my @binds = (@selectBinds, @fromBinds); 
@@ -1781,7 +1843,7 @@ LIMIT 0 ";
 # prepare an sth
 sub prepare {
   my $oq = shift;
-  $$oq{error_handler}->("DEBUG: \$oq->prepare(".Dumper(\@_).")\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$oq->prepare(".Dumper(\@_).")\n") if $$oq{debug};
   return DBIx::OptimalQuery::sth->new($oq,@_); 
 }
 
@@ -1792,7 +1854,7 @@ sub prepare {
 # idx is { dep1 => 0, dep4 => 1, .. etc ..  } # index of what cursor dep is in
 sub _order_deps {
   my $oq = shift;
-  $$oq{error_handler}->("DEBUG: \$oq->_order_deps(".Dumper(\@_).")\n") if $$oq{debug};
+  #$$oq{error_handler}->("DEBUG: \$oq->_order_deps(".Dumper(\@_).")\n") if $$oq{debug};
   my $deps = shift;
   $deps = [$deps] unless ref($deps) eq 'ARRAY';
 

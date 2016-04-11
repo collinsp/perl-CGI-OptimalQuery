@@ -9,6 +9,7 @@ sub on_open {
 <strong>download as..</strong><br>
 <a class=OQDownloadCSV href=#>CSV (Excel)</a>,
 <a class=OQDownloadHTML href=#>HTML</a>,
+<a class=OQDownloadJSON href=#>JSON</a>,
 <a class=OQDownloadXML href=#>XML</a>";
 }
 

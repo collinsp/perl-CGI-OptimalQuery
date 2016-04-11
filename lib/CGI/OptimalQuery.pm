@@ -28,6 +28,7 @@ our %DEFAULT_MODULES = (
   'InteractiveFilter' => 'CGI::OptimalQuery::InteractiveFilter',
   'InteractiveQuery'  => 'CGI::OptimalQuery::InteractiveQuery',
   'XML'               => 'CGI::OptimalQuery::XML',
+  'JSON'              => 'CGI::OptimalQuery::JSON',
   'InteractiveQuery2' => 'CGI::OptimalQuery::InteractiveQuery2',
   'InteractiveFilter2' => 'CGI::OptimalQuery::InteractiveFilter2',
   'ShowColumns'        => 'CGI::OptimalQuery::ShowColumns',

@@ -27,6 +27,7 @@ lib/CGI/OptimalQuery/InteractiveFilter2.pm
 lib/CGI/OptimalQuery/InteractiveQuery.pm
 lib/CGI/OptimalQuery/InteractiveQuery2.pm
 lib/CGI/OptimalQuery/InteractiveQuery2Tools.pm
+lib/CGI/OptimalQuery/JSON.pm
 lib/CGI/OptimalQuery/LoadSearchTool.pm
 lib/CGI/OptimalQuery/OQFilterParser.grammar
 lib/CGI/OptimalQuery/OQFilterParser.pm

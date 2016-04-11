@@ -1,7 +1,7 @@
 # -*- perl -*-
 
 # t/001_load.t - check module loading and create testing directory
-use Test::More tests => 20;
+use Test::More tests => 21;
 
 use strict;
 no warnings;
@@ -27,6 +27,7 @@ use_ok('CGI::OptimalQuery::SavedSearches');
 use_ok('CGI::OptimalQuery::SaveSearchTool');
 use_ok('CGI::OptimalQuery::ShowColumns');
 use_ok('CGI::OptimalQuery::XML');
+use_ok('CGI::OptimalQuery::JSON');
 use_ok('CGI::OptimalQuery');
 
 1;

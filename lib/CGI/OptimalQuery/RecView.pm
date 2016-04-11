@@ -2,13 +2,8 @@ package CGI::OptimalQuery::InteractiveQuery2;
 
 use strict;
 use warnings;
-no warnings qw( uninitialized );
+no warnings qw( uninitialized redefine );
 use base 'CGI::OptimalQuery::Base';
-use CGI();
-
-sub escapeHTML {
-  return defined $_[0] ? CGI::escapeHTML($_[0]) : '';
-}
 
 sub output {
   my $o = shift;

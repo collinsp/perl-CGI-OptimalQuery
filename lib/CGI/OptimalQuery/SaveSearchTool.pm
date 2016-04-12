@@ -85,12 +85,15 @@ sub on_init {
           forceFilter => $$o{schema}{forceFilter},
           hiddenFilter => scalar($$o{q}->param('hiddenFilter'))
         );
+        $sth->set_limit([1, $$o{schema}{savedSearchAlertMaxRecs} + 1]);
 
-        $sth->execute(limit => [1, $$o{schema}{savedSearchAlertMaxRecs} + 1]);
+        $sth->execute();
+
         while (my $h = $sth->fetchrow_hashref()) {
           push @uids, $$h{U_ID};
         }
-        die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if scalar(@uids) > $$o{schema}{savedSearchAlertMaxRecs};
+        die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if scalar(@uids) >= $$o{schema}{savedSearchAlertMaxRecs};
+
         $rec{alert_uids} = join('~', @uids);
       }
   

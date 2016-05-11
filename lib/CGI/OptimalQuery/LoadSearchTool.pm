@@ -19,8 +19,10 @@ sub load_saved_search {
     $params = eval '{'.$params.'}'; 
     if (ref($params) eq 'HASH') {
       delete $$params{module};
-      while (my ($k,$v) = each %$params) { 
-        $$o{q}->param( -name => $k, -values => $v ); 
+      while (my ($k,$v) = each %$params) {
+        if(!defined($$o{q}->param($k))) {
+          $$o{q}->param( -name => $k, -values => $v ); 
+        }
       }
     }
     # remember saved search ID
@@ -45,8 +47,8 @@ sub on_init {
     load_saved_search($o, $$o{q}->param('OQLoadSavedSearch'));
   }
 
-  # else if default saved searches are enabled and this isn't intial load, load default saved search if it exists
-  elsif (exists $$o{schema}{canSaveDefaultSearches} && ! defined $$o{q}->param('filter')) {
+  # else if default saved searches are enabled and this is intial load, load default saved search if it exists
+  elsif (exists $$o{schema}{canSaveDefaultSearches} && !defined($$o{q}->param('OQss', ''))) {
     my ($id) = $$o{dbh}->selectrow_array("
       SELECT id
       FROM oq_saved_search
@@ -54,7 +56,10 @@ sub on_init {
       AND uri=?
       LIMIT 1", undef, $$o{schema}{URI});
     load_saved_search($o, $id) if $id;
-  }
+
+    # forget saved search ID because we loaded as a default
+    $$o{q}->param('OQss', '');
+ }
 }
 
 sub on_open {

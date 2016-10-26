@@ -79,18 +79,14 @@ sub output {
 
   my $ver = "ver=$CGI::OptimalQuery::VERSION";
   my $buf;
-  my $dataonly = $$o{q}->param('dataonly');
-  if ($dataonly) {
-    $buf = $opts{httpHeader}."<!DOCTYPE html>\n<html><body>";
-  } else {
-    my $script;
-    $script .= "window.OQWindowHeight=$opts{WindowHeight};\n" if $opts{WindowHeight};
-    $script .= "window.OQWindowWidth=$opts{WindowWidth};\n" if $opts{WindowWidth};
-    $script .= "window.OQuseAjax=$opts{useAjax};\n";
-    $script .= "window.OQusePopups=$opts{usePopups};\n";
+  my $script;
+  $script .= "window.OQWindowHeight=$opts{WindowHeight};\n" if $opts{WindowHeight};
+  $script .= "window.OQWindowWidth=$opts{WindowWidth};\n" if $opts{WindowWidth};
+  $script .= "window.OQuseAjax=$opts{useAjax};\n";
+  $script .= "window.OQusePopups=$opts{usePopups};\n";
 
-    if (! exists $opts{htmlHeader}) {
-      $opts{htmlHeader} =
+  if (! exists $opts{htmlHeader}) {
+    $opts{htmlHeader} =
 "<!DOCTYPE html>
 <html>
 <head>
@@ -99,7 +95,7 @@ sub output {
 <meta name=viewport content='width=device-width, initial-scale=1.0, user-scalable=no'>  
 ".$opts{htmlExtraHead}."</head>
 <body id=OQbody>";
-    } else {
+  } else {
       $script .= "
   if (! document.getElementById('OQIQ2CSS')) {
     var a = document.createElement('link');
@@ -109,10 +105,10 @@ sub output {
     a.setAttribute('href','$$o{schema}{resourceURI}/InteractiveQuery2.css?1');
     document.getElementsByTagName('head')[0].appendChild(a);
   }\n";
-    }
+  }
 
-    if ($opts{color}) {
-      $script .= "
+  if ($opts{color}) {
+    $script .= "
   var d = document.createElement('style');
   var r = document.createTextNode('.OQhead { background-color: $opts{color}; }');
   d.type = 'text/css';
@@ -120,38 +116,37 @@ sub output {
     d.styleSheet.cssText = r.nodeValue;
   else d.appendChild(r);
   document.getElementsByTagName('head')[0].appendChild(d);\n";
-    }
+  }
 
-    $buf = $opts{httpHeader}.$opts{htmlHeader};
-    $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
-    $buf .= "
+  $buf = $opts{httpHeader}.$opts{htmlHeader};
+  $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
+  $buf .= "
 <script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>
 <script>
 (function(){
 $script
 })();
 </script><noscript>Javascript is required when viewing this page.</noscript>";
-    $buf .= "
+  $buf .= "
 <div class=OQdocTop>$opts{OQdocTop}</div>";
 
-    # ouput tools panel
-    my @tools = sort keys %{$$o{schema}{tools}};
-    if ($#tools > -1) {
-      $buf .= "<div class=OQToolsPanel-pos-div><div class=OQToolsPanel-align-div><div class=OQToolsPanel><ul>";
-      my $opened_tool_key = $$o{q}->param('tool');
-      foreach my $key (sort keys %{$$o{schema}{tools}}) {
-        my $tool = $$o{schema}{tools}{$key};
+  # ouput tools panel
+  my @tools = sort keys %{$$o{schema}{tools}};
+  if ($#tools > -1) {
+    $buf .= "<div class=OQToolsPanel-pos-div><div class=OQToolsPanel-align-div><div class=OQToolsPanel><ul>";
+    my $opened_tool_key = $$o{q}->param('tool');
+    foreach my $key (sort keys %{$$o{schema}{tools}}) {
+      my $tool = $$o{schema}{tools}{$key};
 
-        my $openedClass = '';
-        my $toolContent = '';
-        if ($opened_tool_key eq $key) {
-          $openedClass = ' opened';
-          $toolContent = "<div class=OQToolContent>".$$tool{handler}->($o)."</div>";
-        }
-        $buf .= "<li data-toolkey='$key' class='OQToolExpander $openedClass'><h3>".escapeHTML($$tool{title})."</h3>$toolContent</li>";
+      my $openedClass = '';
+      my $toolContent = '';
+      if ($opened_tool_key eq $key) {
+        $openedClass = ' opened';
+        $toolContent = "<div class=OQToolContent>".$$tool{handler}->($o)."</div>";
       }
-      $buf .= "</ul><button class=OQToolsCancelBut type=button>&#10005;</button></div></div></div>";
+      $buf .= "<li data-toolkey='$key' class='OQToolExpander $openedClass'><h3>".escapeHTML($$tool{title})."</h3>$toolContent</li>";
     }
+    $buf .= "</ul><button class=OQToolsCancelBut type=button>&#10005;</button></div></div></div>";
   }
 
   $buf .= "
@@ -169,6 +164,7 @@ $script
     $buf .= "<input type=hidden name='".escapeHTML($_)."' value='"
          .escapeHTML($$o{q}->param($_))."'>\n" for @{$$o{schema}{state_params}};
   }
+
   $buf .=
 "<a name=OQtop></a>
 <div class=OQformTop>$opts{OQformTop}</div>
@@ -217,6 +213,27 @@ $newBut
     $buf .= "<div class=OQRecViewCmds><button type=button class=OQAddColumnsBut>columns</button></div>";
   }
 
+
+  # print update message
+  my $updated_uid = $o->{q}->param('updated_uid');
+  if ($updated_uid ne '') {
+    my $msg;
+    if (exists $opts{OQRecUpdateMsg}) {
+      if (ref($opts{OQRecUpdateMsg}) eq 'CODE') {
+        $msg = $opts{OQRecUpdateMsg}->($updated_uid);
+      } else {
+        $msg = $opts{OQRecUpdateMsg};
+      }
+    } elsif ($opts{editLink}) {
+      my $editLink = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."on_update=OQrefresh&act=load&id=".CGI::escape($updated_uid);
+      $msg = "Record <a class=opwin href='".escapeHTML($editLink)."'>".escapeHTML($updated_uid)."</a> updated.";
+    }
+    if ($msg) {
+      $buf .= "<div class=OQRecUpdateMsg data-uid='".escapeHTML($updated_uid)."'>$msg</div>";
+    }
+  }
+
+
   $buf .= "<table class=OQdata>";
 
   if ($$o{mode} eq 'recview') {
@@ -245,7 +262,9 @@ $newBut
   my $recs_in_buffer = 0;
   my $typeMap = $o->{oq}->get_col_types('select');
   while (my $r = $o->fetch()) {
-    $buf .= "<tr data-uid='".escapeHTML($$r{U_ID})."'><td class=OQdataLCol>";
+    $buf .= "<tr data-uid='".escapeHTML($$r{U_ID})."'";
+    $buf .= " class=OQupdatedRow" if $updated_uid && $updated_uid eq $$r{U_ID};
+    $buf .= "><td class=OQdataLCol>";
     if (ref($opts{OQdataLCol}) eq 'CODE') {
       $buf .= $opts{OQdataLCol}->($r);
     } elsif (ref($opts{buildEditLink}) eq 'CODE') {
@@ -338,13 +357,8 @@ $newBut
 </div>
 </form>";
 
-  if ($dataonly) {
-    $buf .= "</body></html>";
-  } else {
-
-    $buf .= "<div class=OQdocBottom>$opts{OQdocBottom}</div>";
-    $buf .= $opts{htmlFooter};
-  }
+  $buf .= "<div class=OQdocBottom>$opts{OQdocBottom}</div>";
+  $buf .= $opts{htmlFooter};
 
   $$o{output_handler}->($buf);
 

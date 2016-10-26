@@ -22,6 +22,7 @@ BEGIN {
 our $DEFAULT_MODULE = 'InteractiveQuery2';
 
 our %DEFAULT_MODULES = (
+  'SimpleQuery'       => 'CGI::OptimalQuery::SimpleQuery',
   'CustomOutput'      => 'CGI::OptimalQuery::CustomOutput',
   'PrinterFriendly'   => 'CGI::OptimalQuery::PrinterFriendly',
   'CSV'               => 'CGI::OptimalQuery::CSV',
@@ -96,7 +97,7 @@ sub get_saved_search_list {
   local $dbh->{LongReadLen} = $oracleReadLen
     if $oracleReadLen && $oracleReadLen > $dbh->{LongReadLen};
 
-  my $sth = $dbh->prepare("SELECT id, uri, oq_title, user_title, params FROM oq_saved_search WHERE user_id = ? ORDER BY oq_title, user_title");
+  my $sth = $dbh->prepare("SELECT id, uri, oq_title, user_title, params FROM oq_saved_search WHERE user_id=? ORDER BY oq_title, user_title");
   $sth->execute($userid);
   my $last_oq_title = '';
   my $buffer = '';
@@ -126,7 +127,7 @@ sub get_saved_search_list {
       }
     }
     
-    $buffer .= "<tr><td class='OQ_ss_query_title'><a href=# onclick=\"opwin('$uri?OQLoadSavedSearch=$id".$stateArgs."#OQtop','OQLoadSavedSearch$id','resizable,scrollbars',1024,768); return false;\">".CGI::escapeHTML($user_title)."</a></td><td class='OQ_ss_cmds'><button onclick=\"this.form.OQ_remove_saved_search_id.value = '$id'; this.form.submit();\" type='button'>delete</button></td></tr>";
+    $buffer .= "<tr><td class='OQ_ss_query_title'><a href=# onclick=\"opwin('$uri?OQLoadSavedSearch=$id".$stateArgs."#OQtop','OQLoadSavedSearch$id','resizable,scrollbars',1024,768); return false;\">".CGI::escapeHTML($user_title)."</a></td><td class='OQ_ss_cmds'><button onclick=\"this.form.OQ_remove_saved_search_id.value = '$id'; this.form.submit();\" type='button'>&#10005;</button></td></tr>";
   }
   $sth->finish();
   $buffer .= "</table><input type='hidden' name='OQ_remove_saved_search_id' />
@@ -302,6 +303,15 @@ sub {
 
 # Built in formatters to display all field/values specified in 'select' as html.
 \&CGI::OptimalQuery::Base::recview_html_formatter
+
+=item B<< db_formatter => CODEREF >>
+
+sub {
+  my ($val) = @_;
+  return $val;
+}
+
+# format a value before it is executed in the database
 
 =item B<< is_hidden => 1 >>
 

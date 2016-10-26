@@ -602,6 +602,12 @@ sub create_where {
       my $rule = shift;
       my @token = @_;
 
+      # if there is a database value formatter, call it now
+      my $leftOpts = $$oq{select}{$token[0]{colAlias}}[3];
+      if ($leftOpts && $$leftOpts{db_formatter}) {
+        $token[2]{binds}[0] = $$leftOpts{db_formatter}->($token[2]{binds}[0]);
+      }
+
       # if doing empty string comparison
       if ($token[2]{sql} eq '?' && $token[2]{binds}[0] eq '') {
         my $t0 = $oq->get_col_type($token[0]{colAlias},'filter');
@@ -738,7 +744,6 @@ sub create_where {
           $v =~ s/[^\d\.\-]//g;
           $v = 0 unless $v =~ /^\-?(\d*\.\d+|\d+)$/;
           $token[2]{binds}[0] = $v;
-          $token[2]{name} = $v;
         }
 
         # if numeric operator and field is an oracle clob, convert using to_char

@@ -189,7 +189,7 @@ sub output {
     # if there is a named filter for this field, skip it and make user use named filter instead
     next if exists $$o{schema}{named_filters}{$c};
 
-    $buf .= "<option value='".escapeHTML($c)."'";
+    $buf .= "<option value='".escapeHTML("[$c]")."'";
     $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char';
     $buf .= ">".escapeHTML($$o{schema}{select}{$c}[2]);
   }

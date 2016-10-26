@@ -158,24 +158,15 @@ sub new {
     $$v{on_init}->($o) if ref($$v{on_init}) eq 'CODE';
   }
 
-  # if schema params exist
-  if (ref($$o{schema}{params}) eq 'HASH') {
-    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort mode )) { 
-      $$o{$k} = $$o{schema}{params}{$k} if exists $$o{schema}{params}{$k};
-    }
-  }
-
-  # else use CGI params
-  else {
-    foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort mode )) { 
-      next unless defined $$o{q}->param($k);
+  my $schemaparams = $$o{schema}{params} || {};
+  foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort mode )) { 
+    if (exists $$schemaparams{$k}) {
+      $$o{$k} = $$schemaparams{$k};
+    } elsif (defined $$o{q}->param($k)) {
       $$o{$k} = $$o{q}->param($k);
+    } else {
+      $$o{$k} = $$o{schema}{$k};
     }
-  }
-
-  # use schema defaults when no user defaults are available
-  foreach my $k (qw( show filter hiddenFilter queryDescr sort mode)) {
-    $$o{$k} = $$o{schema}{$k} unless defined $$o{$k};
   }
 
   $$o{mode} ||= 'default';

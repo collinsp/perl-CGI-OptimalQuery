@@ -69,6 +69,7 @@ sub get_html {
     "SELECT id, oq_title, user_title
      FROM oq_saved_search
      WHERE user_id=?
+     AND is_default=0
      ORDER BY oq_title, user_title");
   $sth->execute($userid);
   my $last_oq_title = '';
@@ -81,7 +82,7 @@ sub get_html {
     }
     $buf .= "<li>
 <a href=$selfurl?load=$id title='load saved search' class=oqssload>".escapeHTML($user_title)."</a>
-<a href=# title='delete saved search' class=oqssdelete data-id='$id'>delete</a>
+<button type=button title='delete saved search' class=oqssdelete data-id='$id'>&#10005;</button>
 </li>";
   }
   $buf .= '</ul>' if $last_oq_title;
@@ -89,7 +90,7 @@ sub get_html {
   if ($buf) {
     $buf = '<div id=loadsavedsearches>'.$buf.'</div>
 <script>
-$("#loadsavedsearches").delegate("a.oqssdelete","click",function(){
+$("#loadsavedsearches").delegate(".oqssdelete","click",function(){
   var $t = $(this);
   var $li = $t.closest("li");
   $.ajax({

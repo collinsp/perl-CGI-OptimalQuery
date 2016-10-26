@@ -4,6 +4,34 @@ use strict;
 use JSON::XS();
 use CGI qw(escapeHTML);
 
+sub load_default_saved_search {
+  my ($o) = @_;
+  local $$o{dbh}{LongReadLen};
+  if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
+    $$o{dbh}{LongReadLen} = 900000;
+    my ($readLen) = $$o{dbh}->selectrow_array("SELECT dbms_lob.getlength(params) FROM oq_saved_search WHERE uri=? AND is_default=1", undef, $$o{schema}{URI});
+    $$o{dbh}{LongReadLen} = $readLen if $readLen > $$o{dbh}{LongReadLen};
+  }
+  my ($params) = $$o{dbh}->selectrow_array("
+    SELECT params
+    FROM oq_saved_search
+    WHERE uri=?
+    AND is_default=1", undef, $$o{schema}{URI});
+
+  if ($params) {
+    $params = eval '{'.$params.'}'; 
+    if (ref($params) eq 'HASH') {
+      delete $$params{module};
+      while (my ($k,$v) = each %$params) {
+        if(!defined($$o{q}->param($k))) {
+          $$o{q}->param( -name => $k, -values => $v ); 
+        }
+      }
+    }
+  }
+  return undef;
+}
+
 
 sub load_saved_search {
   my ($o, $id) = @_;
@@ -15,6 +43,7 @@ sub load_saved_search {
   }
   my ($params) = $$o{dbh}->selectrow_array(
     "SELECT params FROM oq_saved_search WHERE id=?", undef, $id);
+
   if ($params) {
     $params = eval '{'.$params.'}'; 
     if (ref($params) eq 'HASH') {
@@ -25,6 +54,7 @@ sub load_saved_search {
         }
       }
     }
+
     # remember saved search ID
     $$o{q}->param('OQss', $id);
   }
@@ -47,19 +77,10 @@ sub on_init {
     load_saved_search($o, $$o{q}->param('OQLoadSavedSearch'));
   }
 
-  # else if default saved searches are enabled and this is intial load, load default saved search if it exists
-  elsif (exists $$o{schema}{canSaveDefaultSearches} && !defined($$o{q}->param('OQss', ''))) {
-    my ($id) = $$o{dbh}->selectrow_array("
-      SELECT id
-      FROM oq_saved_search
-      WHERE is_default=1
-      AND uri=?
-      LIMIT 1", undef, $$o{schema}{URI});
-    load_saved_search($o, $id) if $id;
-
-    # forget saved search ID because we loaded as a default
-    $$o{q}->param('OQss', '');
- }
+  # if intial request, load default saved search if it exists
+  elsif (! defined $$o{q}->param('module')) {
+    load_default_saved_search($o);
+  }
 }
 
 sub on_open {

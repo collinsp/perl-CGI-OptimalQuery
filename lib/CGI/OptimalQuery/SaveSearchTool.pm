@@ -4,7 +4,7 @@ use strict;
 use POSIX qw/strftime/;
 use Data::Dumper;
 use Mail::Sendmail();
-use CGI qw( escapeHTML );
+use CGI qw( escape escapeHTML );
 use JSON::XS;
 
 # save a reference to the current saved save that is running via crontab right now
@@ -62,6 +62,9 @@ sub on_init {
       # does the user want to set this as the default search, and if so do they have permission
       if($$o{schema}{canSaveDefaultSearches} && defined $$o{q}->param('save_search_default')) {
         $rec{is_default} = $$o{q}->param('save_search_default') || 0;
+
+        # delete existing default if it exists
+        $$o{dbh}->do('DELETE FROM oq_saved_search WHERE uri=? AND is_default=1', undef, $rec{uri}) if $rec{is_default};
       }
 
       # is saved search alerts enabled
@@ -137,14 +140,6 @@ sub on_init {
         $rec{id} ||= $$o{dbh}->last_insert_id("","","","");
       }
       
-      # ensure only one possible default saved search
-      eval {
-        if($$o{schema}{canSaveDefaultSearches} && $rec{is_default}) {
-          my $stmt = $$o{dbh}->prepare('UPDATE oq_saved_search SET is_default = 0 WHERE id <> ? AND uri = ?');
-          $stmt->execute($rec{id}, $rec{uri});
-        }
-      }; if($@) {}
-      
       $$o{output_handler}->(CGI::header('application/json').encode_json({ status => "ok", msg => "search saved successfully", id => $rec{id} }));
     }; if ($@) {
       my $err = $@;
@@ -198,7 +193,7 @@ sub on_open {
     $buf .= "
 <label>name <input type=text id=OQsaveSearchTitle value='".$o->escape_html($$rec{USER_TITLE})."'></label>
 <fieldset id=OQSaveReportEmailAlertOpts".($alerts_enabled?' class=opened':'').">
-  <legend><label class=ckbox style='width:12em;text-align:left;'><input type=checkbox id=OQalertenabled".($alerts_enabled?' checked':'')."> send email alert</label></legend>
+  <legend><label class='OQEmailAlertCkBox ckbox'><input type=checkbox id=OQalertenabled".($alerts_enabled?' checked':'')."> send email alert</label></legend>
 
   <p>
   <label>when records are:</label>
@@ -238,7 +233,7 @@ sub on_open {
   # include checkbox to allow user to set saved search as the default settings
   if($$o{schema}{canSaveDefaultSearches}) {
     my ($is_default_ss) = $$o{dbh}->selectrow_array("SELECT is_default FROM oq_saved_search WHERE id=? AND user_id=?", undef, scalar($$o{q}->param('OQss')), $$o{schema}{savedSearchUserID});
-    $buf .= "<label class=ckbox style='margin-left:17px;width:12em;text-align:left;'><input title='Set the filter, sort, and shown columns in this reports as the system default for all users' type=checkbox value=1 id=OQsave_search_default".($is_default_ss ? ' checked' : '').">set as system default</label>";
+    $buf .= "<label class='ckbox OQSavedSearchCkBox'><input title='Set the filter, sort, and shown columns in this reports as the system default for all users' type=checkbox value=1 id=OQsave_search_default".($is_default_ss ? ' checked' : '').">set as system default</label>";
   }
 
   $buf .= "<p>";
@@ -347,6 +342,7 @@ sub custom_output_handler {
       } elsif ($opts{editLink} ne '' && $$rec{U_ID} ne '') {
         $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."act=load&id=$$rec{U_ID}";
       }
+
       $buf .= "<tr";
 
       # if this record is first time visible
@@ -354,8 +350,7 @@ sub custom_output_handler {
       $buf .= "><td>";
       if ($link) {
         if ($link !~ /^https?\:\/\//i) {
-          $link .= '/'.$link unless $link =~ /^\//;
-          $link = $$current_saved_search{opts}{base_url}.$link;
+          $link = $$current_saved_search{opts}{base_url}.'/'.$link;
         }
         $buf .= "<a href='".escapeHTML($link)."'>open</a>";
       }
@@ -417,17 +412,14 @@ sub get_sysdate_sql {
   return $now;
 }
 
-
 sub execute_saved_search_alerts {
   my %opts = @_;
+
+  die "invalid base_url" unless $opts{base_url} =~ /^https?\:\/\//;
+  $opts{base_url} =~ s/\/$//g;
+
   my $sendmail_handler = $opts{sendmail_handler} ||= \&sendmail_handler;
 
-  if ($opts{base_url} =~ /^(https?\:\/\/[^\/]+)(.*)/i) {
-    $opts{server_url} = $1;
-    $opts{path_prefix} = $2;
-  } else {
-    die "invalid option base_url";
-  }
   die "missing option handler" unless ref($opts{handler}) eq 'CODE';
   my $dbh = $opts{dbh} or die "missing dbh";
   
@@ -575,7 +567,7 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
 $$rec{err_msg}
 
 load report:
-".$opts{base_url}.$$rec{URI}.'?OQLoadSavedSearch='.$$rec{ID}.$$rec{state_param_args}."
+$opts{base_url}/$$rec{URI}?OQLoadSavedSearch=".escape($$rec{ID}).$$rec{state_param_args}."
 
 Please contact your administrator if you are unable to fix the problem."
         );
@@ -674,7 +666,7 @@ $$rec{buf}
 <span class='ftv ib'>added: $total_new</span>
 <span class=ib>removed: $total_deleted</span>
 <p>
-<a href='".escapeHTML($opts{base_url}.$$rec{URI}.'?OQLoadSavedSearch='.$$rec{ID}.$$rec{state_param_args})."'>load report</a>
+<a href='".escapeHTML($opts{base_url}.'/'.$$rec{URI}.'?OQLoadSavedSearch='.escape($$rec{ID}).$$rec{state_param_args})."'>load report</a>
 </div>
 </body>
 </html>";

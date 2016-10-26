@@ -24,19 +24,8 @@ form.OQform {
 .OQsummary { width: 30%; text-align: center; float: left; padding: .3em 0; }
 .OQcmds { width: 30%; text-align: right; float: left; }
 
-@media (max-width:600px) {
-  .OQtitle, .OQsummary, .OQcmds {
-    width: 95%;
-    text-align: left;
-  }
-  .OQcmds {
-  margin-bottom: 4px;
-  }
-}
-
 .OQcmds > * {
   font-size: .7em;
-  vertical-align: middle;
 }
 
 .OQinfo {
@@ -143,6 +132,7 @@ form.OQform {
   z-index:99999;
   top: 29px;
 }
+
 .OQToolsPanel * {
   vertical-align: middle;
 }
@@ -407,7 +397,7 @@ table.OQdata {
   margin-bottom: 6px;
 }
 table.OQdata > tbody > tr:nth-child(odd) {
-  background-color: #ccc; 
+  background-color: #ddd;
 }
 table.OQdata > tbody > tr > td {
   border-left: 1px solid #999;
@@ -511,8 +501,8 @@ a.OQeditBut, a.OQnewBut {
   background-position: 6px 6px;
   text-align: left;
   position: absolute;
-  top: -50px;
-  right: 4px;
+  top: -7px;
+  right: -5px;
 }
 
 .OQnewBut,.OQrefreshBut,.OQToolsBut,.OQeditBut,.OQselectBut,.OQhelpBut {
@@ -678,4 +668,65 @@ label.ckbox:hover {
 }
 .OQrecviewVal * {
   text-align: left;
+}
+.mode-recview .OQdata,
+.mode-recview .OQdata tr {
+  display: block;
+}
+.mode-recview .OQdata td {
+  display: inline !important;
+  border: 0 !important;
+}
+
+.OQToolsPanel .OQSavedSearchCkBox {
+  position:relative;
+  left:-4px;
+  width:14em;
+  text-align:left;
+  font-size:11px;
+}
+.OQToolsPanel .OQEmailAlertCkBox {
+  width:14em;
+  text-align:left;
+  font-size:12px;
+  position:relative;
+  left:-45px;
+}
+
+
+@media (max-width: 600px) {
+  .OQToolsPanel-align-div {
+    width: calc(100% - 8px);
+  }
+  .OQhelpBut {
+    display: none;
+  }
+  .OQtitle, .OQsummary {
+    width: 100%;
+    text-align: left;
+    color: #eee;
+    font-size: 12px;
+  }
+  .OQhead * {
+    float: none; 
+    font-weight: normal;
+    margin: 0;
+    padding: 0;
+  }
+  .OQcmds {
+    position: absolute;
+    top: 0;
+    right: 50px;
+  }
+  .OQsummary {
+    font-size: 10px;
+  }
+  .OQFilterPanel table,
+  .OQFilterPanel tr {
+    display: block;
+  }
+  .OQFilterPanel td {
+    display: inline-block;
+  }
+
 }

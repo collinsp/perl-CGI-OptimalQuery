@@ -118,6 +118,7 @@ sub on_init {
             }
           }
           push @binds, $id;
+          local $$o{dbh}{PrintError}=0;
           $$o{dbh}->do("UPDATE oq_saved_search SET ".join(',', @cols)." WHERE id=?", undef, @binds);
           $rec{id} = $id;
         }
@@ -136,6 +137,7 @@ sub on_init {
             push @binds, ($val eq '') ? undef : $val;
           }
         }
+        local $$o{dbh}{PrintError}=0;
         $$o{dbh}->do("INSERT INTO oq_saved_search (".join(',',@cols).") VALUES (".join(',',@vals).")", undef, @binds);
         $rec{id} ||= $$o{dbh}->last_insert_id("","","","");
       }
@@ -146,12 +148,16 @@ sub on_init {
       $err =~ s/\ at\ .*//;
 
       if ($err =~ /unique\ constraint/i ||
+          $err =~ /are not unique/      ||
           $err =~ /duplicate\ entry/i   ||
           $err =~ /unique\_violation/i  ||
           $err =~ /unique\ key/i        ||
           $err =~ /duplicate\ key/i     ||
           $err =~ /constraint\_unique/i) {
         $err = 'Another record with this name already exists.';
+      }
+      else {
+        $$o{error_handler}->("err", $err);
       }
 
       $$o{output_handler}->(CGI::header('application/json').encode_json({ status => "error", msg => $err }));
@@ -233,7 +239,7 @@ sub on_open {
   # include checkbox to allow user to set saved search as the default settings
   if($$o{schema}{canSaveDefaultSearches}) {
     my ($is_default_ss) = $$o{dbh}->selectrow_array("SELECT is_default FROM oq_saved_search WHERE id=? AND user_id=?", undef, scalar($$o{q}->param('OQss')), $$o{schema}{savedSearchUserID});
-    $buf .= "<label class='ckbox OQSavedSearchCkBox'><input title='Set the filter, sort, and shown columns in this reports as the system default for all users' type=checkbox value=1 id=OQsave_search_default".($is_default_ss ? ' checked' : '').">set as system default</label>";
+    $buf .= "<br><label class='ckbox OQSavedSearchCkBox'><input title='Set the filter, sort, and shown columns in this reports as the system default for all users' type=checkbox value=1 id=OQsave_search_default".($is_default_ss ? ' checked' : '').">set as system default</label>";
   }
 
   $buf .= "<p>";

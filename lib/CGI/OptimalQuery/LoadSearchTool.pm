@@ -6,6 +6,7 @@ use CGI qw(escapeHTML);
 
 sub load_default_saved_search {
   my ($o) = @_;
+  return undef unless exists $$o{canSaveDefaultSearches};
   local $$o{dbh}{LongReadLen};
   if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
     $$o{dbh}{LongReadLen} = 900000;
@@ -64,10 +65,11 @@ sub load_saved_search {
 sub on_init {
   my ($o) = @_;
 
+  my $delete_id = $$o{q}->param('OQdeleteSavedSearch') || $$o{q}->url_param('OQdeleteSavedSearch');
+
   # request to delete a saved search
-  if ($$o{q}->param('OQdeleteSavedSearch') =~ /^\d+$/) {
-    my $id = $$o{q}->param('OQdeleteSavedSearch');
-    $$o{dbh}->do("DELETE FROM oq_saved_search WHERE user_id=? AND id=?", undef, $$o{schema}{savedSearchUserID}, $id);
+  if ($delete_id) {
+    $$o{dbh}->do("DELETE FROM oq_saved_search WHERE user_id=? AND id=?", undef, $$o{schema}{savedSearchUserID}, $delete_id);
     $$o{output_handler}->(CGI::header('text/html')."report deleted");
     return undef;
   }

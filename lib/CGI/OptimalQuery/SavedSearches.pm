@@ -65,24 +65,27 @@ sub process_request {
 
 sub get_html {
   my ($q,$dbh,$userid,$selfurl) = @_;
+
+  local $$dbh{FetchHashKeyName} = 'NAME_uc';
+
   my $sth = $dbh->prepare(
-    "SELECT id, oq_title, user_title
+    "SELECT *
      FROM oq_saved_search
      WHERE user_id=?
-     AND is_default=0
      ORDER BY oq_title, user_title");
   $sth->execute($userid);
   my $last_oq_title = '';
   my $buf = '';
-  while (my ($id, $oq_title, $user_title) = $sth->fetchrow_array()) {
-    if ($last_oq_title ne $oq_title) {
+  while (my $h = $sth->fetchrow_hashref()) {
+    next if $$h{IS_DEFAULT};
+    if ($last_oq_title ne $$h{OQ_TITLE}) {
       $buf .= '</ul>' if $last_oq_title;
-      $last_oq_title = $oq_title;
-      $buf .= "<h4>".escapeHTML($oq_title)."</h4><ul>";
+      $last_oq_title = $$h{OQ_TITLE};
+      $buf .= "<h4>".escapeHTML($$h{OQ_TITLE})."</h4><ul>";
     }
     $buf .= "<li>
-<a href=$selfurl?load=$id title='load saved search' class=oqssload>".escapeHTML($user_title)."</a>
-<button type=button title='delete saved search' class=oqssdelete data-id='$id'>&#10005;</button>
+<a href='".escapeHTML("$$h{URI}?OQLoadSavedSearch=$$h{ID}")."' title='load saved search' class='opwin oqssload'>".escapeHTML($$h{USER_TITLE})."</a>
+<button type=button title='delete saved search' class=oqssdelete data-url='".escapeHTML("$$h{URI}?OQdeleteSavedSearch=$$h{ID}")."'>&#10005;</button>
 </li>";
   }
   $buf .= '</ul>' if $last_oq_title;
@@ -90,13 +93,12 @@ sub get_html {
   if ($buf) {
     $buf = '<div id=loadsavedsearches>'.$buf.'</div>
 <script>
-$("#loadsavedsearches").delegate(".oqssdelete","click",function(){
+$("#loadsavedsearches").on("click", ".oqssdelete", function(){
   var $t = $(this);
   var $li = $t.closest("li");
   $.ajax({
     type: "post",
-    url: "'.$selfurl.'",
-    data: { "delete": $t.attr("data-id") },
+    url: $t.attr("data-url"),
     success: function() {
       if ($li.siblings().length==0) {
         var $ul = $li.parent();
@@ -109,8 +111,7 @@ $("#loadsavedsearches").delegate(".oqssdelete","click",function(){
   });
   return false;
 });
-</script><noscript>Javascript is required when viewing this page. For more information see the <a href=accessibility.html>UNHCEMS&reg; Accessibility</a> page.</noscript>
-';
+</script>';
   }
   return $buf;
 }

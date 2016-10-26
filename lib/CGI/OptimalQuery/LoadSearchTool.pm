@@ -65,7 +65,7 @@ sub load_saved_search {
 sub on_init {
   my ($o) = @_;
 
-  my $delete_id = $$o{q}->param('OQdeleteSavedSearch') || $$o{q}->url_param('OQdeleteSavedSearch');
+  my $delete_id = $$o{q}->param('OQDeleteSavedSearch') || $$o{q}->url_param('OQDeleteSavedSearch');
 
   # request to delete a saved search
   if ($delete_id) {

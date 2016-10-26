@@ -155,6 +155,11 @@ form.OQform {
   border-color: transparent;
   border-radius: 6px;
   margin-top: .5em;
+  margin-left: 0;
+}
+#OQSaveReportEmailAlertOpts > legend {
+  margin: 0;
+  padding: 0;
 }
 #OQSaveReportEmailAlertOpts > * {
   display: none;

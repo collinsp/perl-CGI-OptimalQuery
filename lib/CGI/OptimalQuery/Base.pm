@@ -376,7 +376,7 @@ sub default_html_formatter {
     $$o{_noEscapeColMap} = \%noEsc;
   }
   if ($$o{_noEscapeColMap}{$colAlias}) {
-    $val = join(' ', $val) if ref($val) eq 'ARRAY';
+    $val = join(' ', @$val) if ref($val) eq 'ARRAY';
   } elsif (ref($val) eq 'ARRAY') {
     $val = join(', ', map { escapeHTML($_) } @$val);
   } else {

@@ -67,6 +67,7 @@ lib/CGI/OptimalQuery/Resources/view.gif
 lib/CGI/OptimalQuery/SavedSearches.pm
 lib/CGI/OptimalQuery/SaveSearchTool.pm
 lib/CGI/OptimalQuery/ShowColumns.pm
+lib/CGI/OptimalQuery/SimpleQuery.pm
 lib/CGI/OptimalQuery/XML.pm
 lib/DBIx/OptimalQuery.pm
 LICENSE

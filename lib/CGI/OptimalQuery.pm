@@ -2,7 +2,7 @@ package CGI::OptimalQuery;
 
 use strict;
 use warnings;
-no warnings qw( uninitialized );
+no warnings qw( uninitialized redefine );
 use CGI();
 use CGI::OptimalQuery::SavedSearches();
 

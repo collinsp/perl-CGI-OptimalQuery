@@ -2,7 +2,7 @@ package CGI::OptimalQuery::FilterParser;
 
 use strict;
 use warnings;
-no warnings qw( uninitialized );
+no warnings qw( uninitialized redefine );
 
 # arguments: ($CgiOptimalQueryObjecto, $filterString)
 # return value: is an arrayref contain zero or more components that look like:

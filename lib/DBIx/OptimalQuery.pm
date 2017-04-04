@@ -2,7 +2,7 @@ package DBIx::OptimalQuery::sth;
 
 use strict;
 use warnings;
-no warnings qw( uninitialized once );
+no warnings qw( uninitialized once redefine );
 
 use DBI();
 use Carp;

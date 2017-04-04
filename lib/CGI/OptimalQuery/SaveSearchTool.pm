@@ -694,7 +694,7 @@ $$rec{buf}
     my $now = get_sysdate_sql($dbh);
 
     my $sql = "UPDATE oq_saved_search SET alert_last_dt=$now, alert_err=?";
-    if ($update_uids ne $$rec{ALERT_UIDS}) {
+    if (! $$rec{err_msg} && $update_uids ne $$rec{ALERT_UIDS}) {
       $sql .= ", alert_uids=?";
       push @binds, $update_uids;
     }

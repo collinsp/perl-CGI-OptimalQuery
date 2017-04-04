@@ -22,7 +22,7 @@ form.OQform {
   font-weight: bold;
 }
 .OQsummary { width: 30%; text-align: center; float: left; padding: .3em 0; }
-.OQcmds { width: 30%; text-align: right; float: left; }
+.OQcmds { text-align: right; float: right; }
 
 .OQcmds > * {
   font-size: .7em;
@@ -715,13 +715,13 @@ label.ckbox:hover {
   .OQhead * {
     float: none; 
     font-weight: normal;
-    margin: 0;
+    margin: 4px;
     padding: 0;
   }
   .OQcmds {
     position: absolute;
     top: 0;
-    right: 50px;
+    right: 0;
   }
   .OQsummary {
     font-size: 10px;

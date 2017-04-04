@@ -2,7 +2,7 @@ package CGI::OptimalQuery::Base;
 
 use strict;
 use warnings;
-no warnings qw( uninitialized ); 
+no warnings qw( uninitialized redefine ); 
 use CGI();
 use Carp('confess');
 use POSIX();

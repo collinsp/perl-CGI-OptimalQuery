@@ -6,9 +6,7 @@ no warnings qw( uninitialized );
 use base 'CGI::OptimalQuery::Base';
 use CGI();
 
-sub escapeHTML {
-  return defined $_[0] ? CGI::escapeHTML($_[0]) : '';
-}
+sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 sub output {
   my $o = shift;
@@ -26,7 +24,7 @@ sub output {
   $opts{OQdocBottom}    ||= '';
   $opts{OQformTop}      ||= '';
   $opts{OQformBottom}   ||= '';
-  $opts{editButtonLabel}||= 'edit';
+  $opts{editButtonLabel}||= 'open';
   $opts{disable_sort}   ||= 0;
   $opts{disable_filter} ||= 0;
   $opts{disable_select} ||= 0;
@@ -172,14 +170,18 @@ $script
 <div class=OQhead>
 <div class=OQtitle>".escapeHTML($o->get_title)."</div>
 <div class=OQsummary>Result(s) (".$o->commify($o->get_lo_rec)." - "
-  .$o->commify($o->get_hi_rec).") of ".$o->commify($o->get_count)."</div>
+  .$o->commify($o->get_hi_rec).") of ".$o->commify($o->get_count)."</div>";
+
+  if ($$o{mode} ne 'recview') {
+    $buf .= "
 <div class=OQcmds>
 $newBut
-
 <button type=button title='refresh data' class=OQrefreshBut>refresh</button>
 <button type=button title='tools' class=OQToolsBut>tools</button>
 <button type=button title='help' class=OQhelpBut>help</button>
-</div>
+</div>";
+  }
+  $buf .= "
 </div>
 
 <table class=OQinfo>";
@@ -210,7 +212,15 @@ $newBut
 
 
   if ($$o{mode} eq 'recview') {
-    $buf .= "<div class=OQRecViewCmds><button type=button class=OQAddColumnsBut>columns</button></div>";
+    $buf .= "
+<div class=OQRecViewCmds>
+$newBut
+<button type=button class=OQrefreshBut>refresh</button>
+<button type=button class=OQAddColumnsBut>columns</button>
+<button type=button class=OQFilterBut>filter</button>
+<button type=button class=OQhelpBut>help</button>
+<button type=button class=OQToolsBut>tools</button>
+</div>";
   }
 
 
@@ -262,44 +272,22 @@ $newBut
   my $recs_in_buffer = 0;
   my $typeMap = $o->{oq}->get_col_types('select');
   while (my $r = $o->fetch()) {
-    $buf .= "<tr data-uid='".escapeHTML($$r{U_ID})."'";
-    $buf .= " class=OQupdatedRow" if $updated_uid && $updated_uid eq $$r{U_ID};
-    $buf .= "><td class=OQdataLCol>";
+    my $leftBut;
     if (ref($opts{OQdataLCol}) eq 'CODE') {
-      $buf .= $opts{OQdataLCol}->($r);
+      $leftBut = $opts{OQdataLCol}->($r);
     } elsif (ref($opts{buildEditLink}) eq 'CODE') {
       my $link = $opts{buildEditLink}->($o, $r, \%opts);
       if ($link ne '') {
-        $buf .= "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".$opts{editButtonLabel}."</a>";
+        $leftBut = "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".$opts{editButtonLabel}."</a>";
       }
     } elsif ($opts{editLink} ne '' && $$r{U_ID} ne '') {
       my $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."on_update=OQrefresh&act=load&id=$$r{U_ID}";
-      $buf .= "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".$opts{editButtonLabel}."</a>";
-    }
-    $buf .= "</td>";
-
-    if ($$o{mode} eq 'recview') {
-      $buf .= "<td>";
-      foreach my $col (@{ $o->get_usersel_cols }) {
-        my $val = $o->get_html_val($col);
-        if ($val ne '') {
-          my $label = $o->get_nice_name($col);
-          $buf .= "<div class=OQrecviewLabel>".escapeHTML($label).":</div><div class=OQrecviewVal>$val</div>";
-        }
-      }
-      $buf .= "</td>";
+      $leftBut = "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".$opts{editButtonLabel}."</a>";
     }
 
-    else {
-      foreach my $col (@{ $o->get_usersel_cols }) {
-        my $val = $o->get_html_val($col);
-        my $type = $$typeMap{$col} || 'char';
-        $buf .= "<td".(($type ne 'char')?" class=$type":"").">$val</td>";
-      }
-    }
-    $buf .= "<td class=OQdataRCol>";
+    my $rightBut;
     if (ref($opts{OQdataRCol}) eq 'CODE') {
-      $buf .= $opts{OQdataRCol}->($r);
+      $rightBut = $opts{OQdataRCol}->($r);
     } elsif ($o->{q}->param('on_select') ne '') {
       my $on_select = $o->{q}->param('on_select');
       $on_select =~ s/\~.*//;
@@ -311,10 +299,38 @@ $newBut
         $v =~ s/\~\~\~//g;
         $v;
       } @argfields;
-      $buf .= "<button type=button title='select record' class=OQselectBut data-rv='"
+      $rightBut = "<button type=button title='select record' class=OQselectBut data-rv='"
         .escapeHTML(join('~~~',@argvals))."'>select</button>";
     }
-    $buf .= "</td></tr>\n";
+
+
+    $buf .= "<tr data-uid='".escapeHTML($$r{U_ID})."'";
+    $buf .= " class=OQupdatedRow" if $updated_uid && $updated_uid eq $$r{U_ID};
+    $buf .= ">";
+
+    if ($$o{mode} eq 'recview') {
+      $buf .= "<td>";
+      foreach my $col (@{ $o->get_usersel_cols }) {
+        my $val = $o->get_html_val($col);
+        if ($val ne '') {
+          my $label = $o->get_nice_name($col);
+          $buf .= "<div class=OQrecviewLabel>".escapeHTML($label).":</div><div class=OQrecviewVal>$val</div>";
+        }
+      }
+      $buf .= "$leftBut $rightBut</td>";
+    }
+
+    else {
+      $buf .= "<td class=OQdataLCol>$leftBut</td>";
+      foreach my $col (@{ $o->get_usersel_cols }) {
+        my $val = $o->get_html_val($col);
+        my $type = $$typeMap{$col} || 'char';
+        $buf .= "<td".(($type ne 'char')?" class=$type":"").">$val</td>";
+      }
+      $buf .= "<td class=OQdataRCol>$rightBut</td>";
+    }
+
+    $buf .= "</tr>\n";
     if (++$recs_in_buffer == 10000) {
       $$o{output_handler}->($buf);
       $buf = '';

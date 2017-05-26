@@ -3,7 +3,9 @@ package CGI::OptimalQuery::SavedSearches;
 use strict;
 use warnings;
 no warnings qw( uninitialized redefine );
-use CGI qw( escapeHTML );
+use CGI::OptimalQuery::Base();
+
+sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 sub get_html {
   my ($q,$dbh,$userid) = @_;

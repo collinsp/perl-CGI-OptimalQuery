@@ -2,7 +2,8 @@ package CGI::OptimalQuery::Base;
 
 use strict;
 use warnings;
-no warnings qw( uninitialized redefine ); 
+no warnings qw( uninitialized redefine );
+
 use CGI();
 use Carp('confess');
 use POSIX();
@@ -15,7 +16,15 @@ use CGI::OptimalQuery::SaveSearchTool();
 use CGI::OptimalQuery::LoadSearchTool();
 
 sub escapeHTML {
-  return defined $_[0] ? CGI::escapeHTML($_[0]) : '';
+  local ($_) = @_;
+  s{&}{&amp;}gso;
+  s{<}{&lt;}gso;
+  s{>}{&gt;}gso;
+  s{"}{&quot;}gso;
+  s{'}{&#39;}gso;
+  s{\x8b}{&#8249;}gso;
+  s{\x9b}{&#8250;}gso;
+  return $_;
 }
 
 sub can_embed { 0 }

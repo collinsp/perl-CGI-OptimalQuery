@@ -6,7 +6,8 @@ no warnings qw( uninitialized );
 use base 'CGI::OptimalQuery::Base';
 
 use CGI::OptimalQuery::FilterParser;
-use CGI qw(escapeHTML);
+
+sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 sub output {
   my $o = shift;

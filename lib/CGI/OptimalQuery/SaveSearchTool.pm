@@ -4,8 +4,11 @@ use strict;
 use POSIX qw/strftime/;
 use Data::Dumper;
 use Mail::Sendmail();
-use CGI qw( escape escapeHTML );
+use CGI qw( escape );
 use JSON::XS;
+use CGI::OptimalQuery::Base();
+
+sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 # save a reference to the current saved save that is running via crontab right now
 our $current_saved_search;

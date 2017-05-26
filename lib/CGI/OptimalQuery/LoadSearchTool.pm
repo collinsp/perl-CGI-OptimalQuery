@@ -2,7 +2,9 @@ package CGI::OptimalQuery::LoadSearchTool;
 
 use strict;
 use JSON::XS();
-use CGI qw(escapeHTML);
+use CGI::OptimalQuery::Base();
+
+sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 sub load_default_saved_search {
   my ($o) = @_;

@@ -5,8 +5,6 @@ use warnings;
 no warnings qw( uninitialized );
 use base 'CGI::OptimalQuery::Base';
 
-use CGI::OptimalQuery::FilterParser;
-
 sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 sub output {
@@ -28,7 +26,7 @@ sub output {
     }
     elsif (! $$s{$field}[3]{disable_filter}) {
       $filter .= " AND " if $filter;
-      if ($$types{$field} eq 'char') {
+      if ($$types{$field} eq 'char' || $$types{$field} eq 'clob') {
         $filter .= "[$field] contains ''";
       } else {
         $filter .= "[$field] = ''";
@@ -42,9 +40,9 @@ sub output {
   } sort { $$s{$a}[2] cmp $$s{$b}[2] } keys %$s;
   my @op = (qw( = != < <= > >= like ), 'not like', 'contains', 'not contains');
 
-  my $parsedFilter = CGI::OptimalQuery::FilterParser::parseFilter($o, $filter);
+  my $parsedFilter = $$o{oq}->parseFilter($filter);
   foreach my $f (@$parsedFilter) {
-    $buf .= "<tr>";
+    $buf .= "<tr class=filterexp>";
 
     my $typenum = $$f[0] if ref($f) eq 'ARRAY';
 
@@ -72,7 +70,7 @@ sub output {
       $buf .= "</td><td><select class=lexp>";
       foreach my $c (@cols) {
         $buf .= "<option value='[".escapeHTML($c)."]'";
-        $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char';
+        $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char' && $$types{$c} ne 'clob';
         $buf .= " selected" if $c eq $leftExp;
         $buf .= ">".escapeHTML($$o{schema}{select}{$c}[2]);
       }
@@ -153,7 +151,12 @@ sub output {
             .$$nf{html_generator}->($$o{q}, '_nf_arg_')
             .'<input type=hidden value="'.escapeHTML(")").'">';
         } else {
-          my $title = $$nf{title} || $namedFilter;
+          my $title;
+          if (ref($$nf{sql_generator}) eq 'CODE') {
+            my $ar = $$nf{sql_generator}->(@$argArray);
+            $title = $$ar[2];
+          }
+          $title ||= $$nf{title} || $namedFilter;
           $buf .= '<span>'.escapeHTML($title).'</span>'
             .'<input type=hidden value="'
             .escapeHTML("$namedFilter("

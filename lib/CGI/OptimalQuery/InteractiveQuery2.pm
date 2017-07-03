@@ -119,7 +119,7 @@ sub output {
   $buf = $opts{httpHeader}.$opts{htmlHeader};
   $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
   $buf .= "
-<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>
+<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?a$ver></script><noscript>Javascript is required when viewing this page.</noscript>
 <script>
 (function(){
 $script

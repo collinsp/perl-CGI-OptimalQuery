@@ -1050,7 +1050,8 @@ sub generateFilterSQL {
               my $sign = $1;
               my $num = $2;
               my $unit = uc($3) || 'DAY';
-              $rightName = "today ".$sign.$num." ".$unit;
+              $rightName = "today ".$sign.$num." ".lc($unit);
+              $rightName .= 's' if $num != 1;
               $num *= -1 if $sign eq '-';
 
               if ($$oq{dbtype} eq 'Oracle') {
@@ -1098,14 +1099,18 @@ sub generateFilterSQL {
 
               # extract time component if the type supports it
               if ($leftType eq 'datetime') {
-                if ($rval =~ /\D(\d\d?)\:(\d\d?)[\:\.](\d\d?)/) {
+                if ($rval =~ /\b(\d\d?)\:(\d\d?)[\:\.](\d\d?)/) {
                   $h = $1;
                   $mi = $2;
                   $s = $3;
                 }
-                elsif ($rval =~ /\D(\d\d?)\:(\d\d?)/) {
+                elsif ($rval =~ /\b(\d\d?)\:(\d\d?)/) {
                   $h = $1;
                   $mi = $2;
+                }
+                elsif ($rval =~ /\b(\d\d?)\s*(am|pm)/i) {
+                  $h = $1;
+                  $mi = '00'; 
                 }
                 if ($rval =~ /A/i) {
                   $hourType='AM';
@@ -1431,7 +1436,8 @@ sub generateFilterSQL {
     $name .= $p;
   }
 
-  return { sql => $sql, binds => \@binds, deps => \@deps, name => $name };
+  my %rv = ( sql => $sql, binds => \@binds, deps => \@deps, name => $name ); 
+  return \%rv;
 }
 
 
@@ -1789,27 +1795,34 @@ sub type_map {
   my $oq = shift;
   return {
   -1 => 'char',
+  -2 => 'clob',
+  -3 => 'clob',
   -4 => 'clob',
   -5 => 'num',
   -6 => 'num',
+  -7 => 'num',
+  -8 => 'char',
   -9 => 'char',
   0 => 'char',
   1 => 'char',
+  2 => 'num',
   3 => 'num',    # is decimal type
   4 => 'num',
+  5 => 'num',
   6 => 'num',    # float
   7  => 'num',
   8 => 'num',
   9 => 'date',
+  10 => 'char',  # time (no date)
   11 => 'datetime',
-  10 => 'char',
   12 => 'char',
   16 => 'date',
   30 => 'clob',
   40 => 'clob',
   91 => 'date',
-  93 => 'date',
+  93 => 'datetime',
   95 => 'date',
+  'TIMESTAMP' => 'datetime',
   'INTEGER' => 'num',
   'TEXT' => 'char',
   'VARCHAR' => 'char',

@@ -939,7 +939,7 @@ sub parseFilter {
              $f =~ /\G(\-?\d+)\s*/gc      ||
              $f =~ /\G\'([^\']*)\'\s*/gc  ||
              $f =~ /\G\"([^\"]*)\"\s*/gc  ||
-             $f =~ /\G(\w+)\s*/gc) {
+             $f =~ /\G(\S+)\s*/gc) {
         $rexp = $1;
       }
 
@@ -1046,7 +1046,7 @@ sub generateFilterSQL {
           if ($leftType eq 'date' || $leftType eq 'datetime') {
 
             # is this a calculated date?
-            if ($rval =~ /today\s*([\+\-])\s*(\d+)\s*(minute|hour|day|week|month|year|)/i) {
+            if ($rval =~ /today\s*([\+\-])\s*(\d+)\s*(minute|hour|day|week|month|year|)s?/i) {
               my $sign = $1;
               my $num = $2;
               my $unit = uc($3) || 'DAY';
@@ -1070,6 +1070,15 @@ sub generateFilterSQL {
               } else {
                 my $now = $leftType eq 'datetime' ? 'NOW()' : 'CURDATE()';
                 $rightSql = "DATE_ADD($now, INTERVAL $num $unit)";
+              }
+            }
+
+            elsif ($rval =~ /today\s*/i) {
+              $rightName = "today";
+              if ($$oq{dbtype} eq 'Oracle') {
+                $rightSql = $leftType eq 'datetime' ? 'SYSDATE' : 'TRUNC(SYSDATE)';
+              } else {
+                $rightSql = $leftType eq 'datetime' ? 'NOW()' : 'CURDATE()';
               }
             }
 
@@ -1194,9 +1203,15 @@ sub generateFilterSQL {
 
           # if this is a numeric comparison and rvalue is not a number, convert left side to text
           elsif ($leftType eq 'num' && $rval !~ /^(\-?\d*\.\d+|\-?\d+)$/) {
-            $leftSql = "TO_CHAR($leftSql)";
-            $rightSql = '?';
-            push @rightBinds, $rval;
+            if ($$oq{dbtype} eq 'mysql') {
+              $leftSql = "CONCAT('',$leftSql)";
+              $rightSql = '?';
+              push @rightBinds, $rval;
+            } else {
+              $leftSql = "TO_CHAR($leftSql)";
+              $rightSql = '?';
+              push @rightBinds, $rval;
+            }
           }
 
           # if numeric operator and field is an oracle clob, convert using to_char
@@ -1396,7 +1411,8 @@ sub generateFilterSQL {
       # do type conversion to ensure types are the same
       if ($leftType ne $rightType) {
         if ($$oq{dbtype} eq 'mysql') {
-          # mysql does automatic type conversions
+          $leftSql  = "CONCAT('', $leftSql)"  unless $leftType eq 'char';
+          $rightSql = "CONCAT('', $rightSql)" unless $rightType eq 'char';
         } else {
           $leftSql  = "TO_CHAR($leftSql)"  unless $leftType eq 'char';
           $rightSql = "TO_CHAR($rightSql)" unless $rightType eq 'char';

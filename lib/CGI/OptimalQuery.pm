@@ -320,6 +320,10 @@ The following KEY/VALUES below describe OPTIONS used by the joins configuration.
 
 =over
 
+=item B<< always_join => 1 >>
+
+tells OptimalQuery to always include join in query. Usfual when the join itself influences the number of results returned. Alternatively, an inline view could be constructed that performs the joins as part of the driving data set.
+
 =item B<< new_cursor => 1 >>
 
 tells OptimalQuery to open a new cursor for this join. This can be used to select and filter multi-value fields.

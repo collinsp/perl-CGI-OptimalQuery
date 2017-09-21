@@ -76,7 +76,7 @@ sub execute {
   # build SQL for main cursor
   { my $c = $sth->{cursors}->[0];
     my @all_deps = (@{$c->{select_deps}}, @{$c->{where_deps}}, @{$c->{order_by_deps}});
-    my ($order) = @{ $sth->{oq}->_order_deps(\@all_deps) }; 
+    my ($order) = $sth->{oq}->_order_deps(@all_deps); 
     my @from_deps; push @from_deps, @$_ for @$order;
 
     # create from_sql, from_binds
@@ -382,7 +382,7 @@ sub create_select {
   }
 
   # order and index deps into appropriate cursors
-  my ($dep_order, $dep_idx) = @{ $sth->{oq}->_order_deps(\@deps) };
+  my ($dep_order, $dep_idx) = $sth->{oq}->_order_deps(@deps);
 
   # look though select again and add all cols with is_hidden option
   # if all their deps have been fulfilled
@@ -647,8 +647,7 @@ sub count {
 
     # only need to join in driving table with
     # deps used in where clause
-    my $deps = [ $drivingTable, @{$c->{where_deps}} ];
-    ($deps) = @{ $sth->{oq}->_order_deps($deps) };
+    my ($deps) = $sth->{oq}->_order_deps($drivingTable, @{$c->{where_deps}});
     my @from_deps; push @from_deps, @$_ for @$deps;
 
     # create from_sql, from_binds
@@ -1017,9 +1016,15 @@ sub generateFilterSQL {
 
       # handle right side of expression
       my ($rightSql, $rightName, @rightBinds);
+      
+      $rightName = $rval;
+      if ($rightName eq '') {
+        $rightName = "''";
+      } elsif ($rightName =~ /\s/) {
+        $rightName = '"'.$rightName.'"';
+      }
 
       $rval = $$leftOpts{db_formatter}->($rval) if $$leftOpts{db_formatter};
-      $rightName = '"'.$rval.'"';
 
       # if empty check
       if ($rval eq '') {
@@ -1094,8 +1099,11 @@ sub generateFilterSQL {
                 $m = $1;
                 $d = $2;
                 $y = $3;
-              }
-              elsif ($rval =~ /^(\d\d\d\d)[\-\/](\d\d?)/) {
+              } elsif ($rval =~ /^(\d\d?)[\-\/](\d\d?)[\-\/](\d\d)\b/) {
+                $m = $1;
+                $d = $2;
+                $y = int('20'.$3);
+              } elsif ($rval =~ /^(\d\d\d\d)[\-\/](\d\d?)/) {
                 $y = $1;
                 $m = $2;
               }
@@ -1265,7 +1273,7 @@ sub generateFilterSQL {
       my $i=0;
       while (1) {
         die "infinite dep loop detected" if ++$i==50;
-        my $parentDep = $$oq{joins}{$path[-1]}[0];
+        my $parentDep = $$oq{joins}{$path[-1]}[0][0];
         last unless $parentDep;
         push @path, $parentDep;
       }
@@ -1302,7 +1310,7 @@ sub generateFilterSQL {
 
           # in a one2many filter that has a negative operator, we need to use
           # a NOT EXISTS and unnegate the operator
-          if ($rightName eq '""') {
+          if ($rightName eq "''") {
             if ($operator eq '=') {
               $preSql .= "NOT ";
               $operator = '!=';
@@ -1417,6 +1425,13 @@ sub generateFilterSQL {
           $leftSql  = "TO_CHAR($leftSql)"  unless $leftType eq 'char';
           $rightSql = "TO_CHAR($rightSql)" unless $rightType eq 'char';
         }
+      }
+
+      # if char ensure NULL is turned into empty string so comparison works
+      if ($leftType eq 'char') {
+        my $nullVal = $$oq{dbtype} eq 'Oracle' ? "'_ _'" : "''";
+        $leftSql = "COALESCE($leftSql,$nullVal)";
+        $rightSql = "COALESCE($rightSql,$nullVal)";
       }
 
       # handle case insensitivity
@@ -1750,7 +1765,7 @@ sub check_join_counts {
   my $drivingTableCount;
 
   foreach my $join (keys %{ $oq->{joins} }) {
-    my ($cursors) = @{ $oq->_order_deps($join) };
+    my ($cursors) = $oq->_order_deps($join);
     my @deps = map { @$_ } @$cursors; # flatten deps in cursors
     my $drivingTable = $deps[0];
 
@@ -1915,7 +1930,7 @@ sub get_col_types {
 
     # order and flatten deps
     my @deps = keys %deps;
-    my ($deps) = @{ $oq->_order_deps(\@deps) };
+    my ($deps) = $oq->_order_deps(@deps);
 
 
     @deps = ();
@@ -2021,10 +2036,13 @@ sub prepare {
 # order is [ [dep1,dep2,dep3], [dep4,dep5,dep6] ], # cursor/dep order
 # idx is { dep1 => 0, dep4 => 1, .. etc ..  } # index of what cursor dep is in
 sub _order_deps {
-  my $oq = shift;
+  my ($oq, @deps) = @_;
   #$$oq{error_handler}->("DEBUG: \$oq->_order_deps(".Dumper(\@_).")\n") if $$oq{debug};
-  my $deps = shift;
-  $deps = [$deps] unless ref($deps) eq 'ARRAY';
+
+  # add always_join deps
+  foreach my $joinAlias (keys %{ $$oq{joins} }) {
+    push @deps, $joinAlias if $$oq{joins}{$joinAlias}[3]{always_join};
+  }
 
   # @order is an array of array refs. Where each array ref represents deps
   # for a separate cursor
@@ -2042,7 +2060,7 @@ sub _order_deps {
   # modfies @order & %idx 
   my $place_missing_deps;
   $place_missing_deps = sub {
-    my $dep = shift;
+    my ($dep) = @_;
 
     # detect infinite recursion
     $maxRecurse--;
@@ -2078,9 +2096,9 @@ sub _order_deps {
     return undef;
   };
 
-  $place_missing_deps->($_) for @$deps;
+  $place_missing_deps->($_) for @deps;
 
-  return [\@order, \%idx];
+  return (\@order, \%idx);
 }
 
 

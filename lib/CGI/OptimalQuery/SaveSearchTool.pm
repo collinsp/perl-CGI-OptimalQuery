@@ -553,13 +553,15 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
     # and populate $$rec{buf}, $$rec{uids}, $$rec{err_msg}
     eval {
       $opts{handler}->($rec);
-      die "email_to not defined" if $$rec{email_to} eq ''; 
       $opts{error_handler}->("debug", "after OQ execution uids: ".Dumper(\%uids)) if $opts{debug};
     };
     if ($@) {
       $$rec{err_msg} = $@;
       $$rec{err_msg} =~ s/\ at\ .*//;
     }
+
+    # skip this search search alert if we could not get an email address
+    next unless $$rec{email_to} =~ /\@/;
 
     my @update_uids;
     # if there was an error processing saved search, send user an email

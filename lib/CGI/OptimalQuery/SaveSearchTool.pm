@@ -568,7 +568,8 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
     if ($$rec{err_msg}) {
       $opts{error_handler}->("err", "Error: $@\n\nsaved search:\n".Dumper($rec)."\n\nENV:\n".Dumper(\%ENV)."\n\n");
       if ($$rec{email_to}) {
-        my %email = (
+        my %email;
+        %email = (
           to => $$rec{email_to},
           from => $$rec{email_from} || $opts{email_from},
           'Reply-To' => $$rec{'email_Reply-To'} || $opts{'email_Reply-To'},
@@ -610,7 +611,8 @@ Please contact your administrator if you are unable to fix the problem."
       }
       $opts{error_handler}->("info", "total_new: $total_new; total_deleted: $total_deleted; total_count: $total_count");
 
-      my $should_send_email = 1 if
+      my $should_send_email;
+      $should_send_email = 1 if
         ( # alert when records are added
           ($$rec{ALERT_MASK} & 1 && $total_new > 0) ||
           # alert when records are deleted

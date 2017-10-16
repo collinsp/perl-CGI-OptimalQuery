@@ -907,6 +907,7 @@ sub parseFilter {
 
       # grab select alias used on the left side of the expression
       if ($f=~/\G\[([^\]]+)\]\s*/gc) { $lexp = $1; }
+      elsif ($f=~/\G(\w+)\s*/gc) { $lexp = $1; }
       else {
         $error = "missing left expression";
       }
@@ -919,7 +920,7 @@ sub parseFilter {
 
       # parse the operator
       my $op;
-      if ($f =~ /\G(\!\=|\=|\<\=|\>\=|\<|\>|like|not\ like|contains|not\ contains)\s*/igc) {
+      if ($f =~ /\G(\!\=|\=|\<\=|\>\=|\<|\>|like|not\ ?like|contains|not\ ?contains)\s*/igc) {
         $op = lc($1);
       }
       else {
@@ -934,12 +935,19 @@ sub parseFilter {
       }
 
       # else if rexp is a literal
-      elsif ($f =~ /\G(\-?\d*\.\d+)\s*/gc ||
-             $f =~ /\G(\-?\d+)\s*/gc      ||
-             $f =~ /\G\'([^\']*)\'\s*/gc  ||
-             $f =~ /\G\"([^\"]*)\"\s*/gc  ||
-             $f =~ /\G(\S+)\s*/gc) {
+      elsif ($f =~ /\G\'([^\']*)\'\s*/gc  ||
+             $f =~ /\G\"([^\"]*)\"\s*/gc) {
         $rexp = $1;
+      }
+
+      # else if rexp is a word
+      elsif ($f =~ /\G(\S+)\s*/gc) {
+        $rexp = $1;
+
+        # is word a col alias?
+        if ($$oq{select}{$rexp}) {
+          $typeNum = 3;
+        }
       }
 
       else {
@@ -972,6 +980,7 @@ sub parseFilter {
     $error .= " at ".substr($f, 0, $p).'<*>'.substr($f, $p);
     die $error."\n";
   }
+
   return \@rv;
 }
 
@@ -1436,6 +1445,7 @@ sub generateFilterSQL {
 
       # handle case insensitivity
       if ($operatorName =~ /contains/i) {
+        $operator = $operatorName =~ /not/i ? "NOT LIKE" : "LIKE";
         $leftSql  = "LOWER($leftSql)";
         $rightSql = "LOWER($rightSql)";
         $rightSql = $$oq{dbtype} eq 'Oracle' || $$oq{dbtype} eq 'SQLite'
@@ -1795,7 +1805,8 @@ sub check_join_counts {
       }
     }
 
-    my $where = 'WHERE '.join("\nAND ", @whereSql) if @whereSql;
+    my $where;
+    $where = 'WHERE '.join("\nAND ", @whereSql) if @whereSql;
 
     my $sql = "
 SELECT count(*)

@@ -126,6 +126,7 @@ $script
 })();
 </script><noscript>Javascript is required when viewing this page.</noscript>";
   $buf .= "
+<div class=OQdoc>
 <div class=OQdocTop>$opts{OQdocTop}</div>";
 
   # ouput tools panel
@@ -374,6 +375,7 @@ $newBut
 </form>";
 
   $buf .= "<div class=OQdocBottom>$opts{OQdocBottom}</div>";
+  $buf .= "</div>"; # div.OQdoc
   $buf .= $opts{htmlFooter};
 
   $$o{output_handler}->($buf);

@@ -1491,7 +1491,7 @@ sub parseSort {
   while (1) {
 
     # parse named sort
-    if (/\G(\w+)\(\s*/gc) {
+    if ($str =~ /\G(\w+)\(\s*/gc) {
       my $namedSortAlias = $1;
       my @args;
       while (1) {

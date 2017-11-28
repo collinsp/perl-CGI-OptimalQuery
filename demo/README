@@ -25,7 +25,7 @@ Step 3) Configure Apache
   # configure file permissions so apache can access files
   export OQBASEPATH=/path/to/perl-CGI-OptimalQuery
   sudo chgrp -R apache $OQBASEPATH
-  sudo chmod -R ug+rwX $OQBASEPATH
+  sudo chmod -R u=rwX,go=rX $OQBASEPATH
   sudo chmod -R ug+rwx $OQBASEPATH/demo/cgi-bin
 
   # if SELinux is installed, set file contexts so apache process is not blocked

@@ -152,16 +152,17 @@ $script
 <form class='OQform mode-$$o{mode}' name=OQform action='".escapeHTML($$o{schema}{URI_standalone}||$$o{schema}{URI})."' method=get>
 <input type=hidden name=show value='".escapeHTML(join(',',@{$$o{show}}))."'>
 <input type=hidden name=filter value='".escapeHTML($$o{filter})."'>
-<input type=hidden name=mode value='".escapeHTML($$o{mode})."'>
 <input type=hidden name=hiddenFilter value='".escapeHTML($$o{hiddenFilter})."'>
 <input type=hidden name=queryDescr value='".escapeHTML($$o{queryDescr})."'>
-<input type=hidden name=sort value='".escapeHTML($$o{'sort'})."'>
-<input type=hidden name=module value='".escapeHTML($$o{module})."'>
-<input type=hidden name=OQss value='".escapeHTML($$o{q}->param('OQss'))."'>
-<input type=hidden name=on_select value='".escapeHTML($$o{q}->param('on_select'))."'>\n";
-  if (ref($$o{schema}{state_params}) eq 'ARRAY') {
-    $buf .= "<input type=hidden name='".escapeHTML($_)."' value='"
-         .escapeHTML($$o{q}->param($_))."'>\n" for @{$$o{schema}{state_params}};
+<input type=hidden name=sort value='".escapeHTML($$o{'sort'})."'>\n";
+  $buf .= "<input type=hidden name=mode value='".escapeHTML($$o{mode})."'>\n" if $$o{mode};
+  $buf .= "<input type=hidden name=module value='".escapeHTML($$o{module})."'>\n" if $$o{module};
+
+  my @p = qw( OQss on_select on_update );
+  push @p, @{ $$o{schema}{state_params} } if ref($$o{schema}{state_params}) eq 'ARRAY'; 
+  foreach my $p (@p) {
+    my $v = $$o{q}->param($p);
+    $buf .= "<input type=hidden name='".escapeHTML($p)."' value='".escapeHTML($v)."'>\n" if $v ne '';
   }
 
   $buf .=
@@ -326,7 +327,12 @@ $newBut
       foreach my $col (@{ $o->get_usersel_cols }) {
         my $val = $o->get_html_val($col);
         my $type = $$typeMap{$col} || 'char';
-        $buf .= "<td".(($type ne 'char')?" class=$type":"").">$val</td>";
+        $buf .= "<td";
+        $buf .= " class=$type" unless $type eq 'char';
+        $buf .= " nowrap" if $$o{schema}{select}{$col}[3]{nowrap};
+        $buf .= " align='".escapeHTML($$o{schema}{select}{$col}[3]{align})."'"
+          if $$o{schema}{select}{$col}[3]{align};
+        $buf .= ">$val</td>";
       }
       $buf .= "<td class=OQdataRCol>$rightBut</td>";
     }

@@ -876,11 +876,9 @@ sub parseFilter {
         if ($f =~ /\G\)\s*/gc) {
           last;
         }
-        elsif ($f =~ /\G(\-?\d*\.\d+)\s*\,*\s*/gc ||
-               $f =~ /\G(\-?\d+)\s*\,*\s*/gc      ||
-               $f =~ /\G\'([^\']*)\'\s*\,*\s*/gc  ||
-               $f =~ /\G\"([^\"]*)\"\s*\,*\s*/gc  ||
-               $f =~ /\G(\w+)\s*\,*\s*/gc) {
+        elsif ($f =~ /\G\'([^\']*)\'\s*\,?\s*/gc ||
+               $f =~ /\G\"([^\"]*)\"\s*\,?\s*/gc ||
+               $f =~ /\G([^\)\,]*)\s*\,?\s*/gc) {
           push @args, $1;
         } else {
           $error = "could not parse named filter arguments";

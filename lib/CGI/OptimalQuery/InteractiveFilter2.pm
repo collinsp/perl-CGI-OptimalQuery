@@ -40,6 +40,8 @@ sub output {
   } sort { $$s{$a}[2] cmp $$s{$b}[2] } keys %$s;
   my @op = (qw( = != < <= > >= like ), 'not like', 'contains', 'not contains');
 
+  my $seq = 0;
+
   my $parsedFilter = $$o{oq}->parseFilter($filter);
   foreach my $f (@$parsedFilter) {
     $buf .= "<tr class=filterexp>";
@@ -145,12 +147,14 @@ sub output {
             $args{$name}||=[];
             push @{$args{$name}}, $val;
           }
+          my $prefix = '_nfarg'.++$seq;
+
           while (my ($name,$vals) = each %args) {
-            $$o{q}->param('_nf_arg_'.$name, @$vals);
+            $$o{q}->param($prefix.$name, @$vals);
           }
           $buf .= 
             '<input type=hidden value="'.escapeHTML("$namedFilter(").'">'
-            .$$nf{html_generator}->($$o{q}, '_nf_arg_')
+            .$$nf{html_generator}->($$o{q}, $prefix)
             .'<input type=hidden value="'.escapeHTML(")").'">';
         } else {
           my $title;

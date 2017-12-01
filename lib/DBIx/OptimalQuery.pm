@@ -1072,6 +1072,8 @@ sub generateFilterSQL {
                   $rightSql = "$now+($num/1440)"
                 } elsif ($unit eq 'HOUR') {
                   $rightSql = "$now+($num/24)"
+                } elsif ($unit eq 'DAY') {
+                  $rightSql = "$now+$num"
                 } elsif ($unit eq 'WEEK') {
                   $rightSql = "$now+($num*7)"
                 } elsif ($unit eq 'MONTH') {

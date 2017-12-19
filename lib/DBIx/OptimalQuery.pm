@@ -1385,7 +1385,8 @@ sub generateFilterSQL {
 
 
       my $sql = '(' x $numLeftParen;
-      $sql .= $filterSql;
+      # put expression in parenthesis since it may contain OR expression without parenthesis which will screw up order of operations
+      $sql .= '('.$filterSql.')';
       $sql .= ')' x $numRightParen;
 
       # glue expression

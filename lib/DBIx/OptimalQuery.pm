@@ -1249,7 +1249,7 @@ sub generateFilterSQL {
 
           # convert contains operator to like
           if ($operatorName =~ /contains/i) {
-            $leftSql = "LOWER($leftSql)" if ! $leftType eq 'char' || $leftType eq 'clob';
+            $leftSql = "LOWER($leftSql)" if $leftType eq 'char' || $leftType eq 'clob';
             $operator = $operatorName =~ /not/i ? "NOT LIKE" : "LIKE";
             $rval = '%'.lc($rval).'%';
           }

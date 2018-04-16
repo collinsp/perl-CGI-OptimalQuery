@@ -100,7 +100,7 @@ sub new {
 # ------------------------- print -------------------------
 sub output {
   my $o = shift;
-  $$o{output_handler}->(CGI::header());
+  $$o{output_handler}->($$o{httpHeader}->());
   my $view = $$o{view};
   $$o{output_handler}->($o->$view()) if $o->can($view);
   return undef;

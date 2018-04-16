@@ -9,7 +9,7 @@ sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 sub output {
   my $o = shift;
-  my $buf = CGI::header('text/html')."<!DOCTYPE html>\n<html><body><div class=OQFilterPanel><h1>filter</h1><table>";
+  my $buf = $$o{httpHeader}->('text/html')."<!DOCTYPE html>\n<html><body><div class=OQFilterPanel><h1>filter</h1><table>";
   my $types = $$o{oq}->get_col_types('filter');
   my $s = $$o{schema}{select};
 

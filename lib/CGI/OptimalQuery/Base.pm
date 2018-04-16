@@ -50,6 +50,7 @@ sub new {
     or confess "couldn't find q in schema!";
   $$o{output_handler} = $$o{schema}{output_handler};
   $$o{error_handler} = $$o{schema}{error_handler};
+  $$o{httpHeader} = $$o{schema}{httpHeader};
 
   # check for required attributes
   confess "specified select is not a hash ref!"

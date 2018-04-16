@@ -37,6 +37,15 @@ our %DEFAULT_MODULES = (
   'InteractiveQuery2Tools' => 'CGI::OptimalQuery::InteractiveQuery2Tools'
 );
 
+sub default_output_handler {
+  print STDOUT @_;
+  return undef;
+}
+sub default_error_handler {
+  print STDERR @_;
+  return undef;
+}
+
 
 # Constructor
 # my $recset = CGI::OptimalQuery->new(\%schema )
@@ -63,8 +72,9 @@ sub new {
   }
 
   # set default handlers
-  $$schema{output_handler} ||= sub { print @_ };
-  $$schema{error_handler}  ||= sub { print STDERR @_; 0; };
+  $$schema{output_handler} ||= \&default_output_handler;
+  $$schema{error_handler}  ||= \&default_error_handler;
+  $$schema{httpHeader} ||= \&CGI::header;
 
   # find module & class
   my $module = $$schema{q}->param('module') || $$schema{module} || $DEFAULT_MODULE;

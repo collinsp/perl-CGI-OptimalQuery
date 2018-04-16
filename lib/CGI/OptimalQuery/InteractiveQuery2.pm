@@ -42,7 +42,7 @@ sub output {
     $opts{useAjax}=($opts{useAjax}) ? 1 : 0;
   }
 
-  $opts{httpHeader} = $$o{q}->header(-type=>'text/html',-expires=>'now')
+  $opts{httpHeader} = $$o{httpHeader}->(-type=>'text/html',-expires=>'now')
     unless exists $opts{httpHeader};
   $opts{htmlFooter} = "</body>\n</html>\n"
     unless exists $opts{htmlFooter};
@@ -117,14 +117,14 @@ sub output {
   }
 
   $buf = $opts{httpHeader}.$opts{htmlHeader};
-  $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script><noscript>Javascript is required when viewing this page.</noscript>" unless $opts{jquery_already_sent};
+  $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script>" unless $opts{jquery_already_sent};
   $buf .= "
-<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?a$ver></script><noscript>Javascript is required when viewing this page.</noscript>
+<script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?$ver></script>
 <script>
 (function(){
 $script
 })();
-</script><noscript>Javascript is required when viewing this page.</noscript>";
+</script>";
   $buf .= "
 <div class=OQdoc>
 <div class=OQdocTop>$opts{OQdocTop}</div>";
@@ -246,6 +246,9 @@ $newBut
   }
 
 
+$$o{output_handler}->($buf);
+$buf = '';
+
   $buf .= "<table class=OQdata>";
 
   if ($$o{mode} eq 'recview') {
@@ -338,7 +341,7 @@ $newBut
     }
 
     $buf .= "</tr>\n";
-    if (++$recs_in_buffer == 10000) {
+    if (++$recs_in_buffer == 1000) {
       $$o{output_handler}->($buf);
       $buf = '';
       $recs_in_buffer = 0;

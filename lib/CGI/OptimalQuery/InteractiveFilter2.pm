@@ -59,6 +59,7 @@ sub output {
     elsif ($typenum == 1 || $typenum == 3) {
       $buf .= "<td>";
       my ($type,$numLeftParen,$leftExp,$operator,$rightExp,$numRightParen) = @$f;
+
       if ($numLeftParen == 0) {
         $buf .= "<button type=button class=lp>(</button>";
       } else {
@@ -70,35 +71,80 @@ sub output {
         $buf .= " selected" if $numLeftParen==3;
         $buf .= ">(((</select>";
       }
-      $buf .= "</td><td><select class=lexp>";
-      foreach my $c (@cols) {
-        $buf .= "<option value='".escapeHTML($c)."'";
-        $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char' && $$types{$c} ne 'clob';
-        $buf .= " selected" if $c eq $leftExp;
-        $buf .= ">".escapeHTML($$o{schema}{select}{$c}[2]);
+      $buf .= "</td>";
+
+      my $colOpts = $$o{schema}{select}{$leftExp}[3];
+
+      # if lexp is not something that user is allowed to filter or is hidden
+      if ($$colOpts{disable_filter} || $$colOpts{is_hidden}) {
+        my $exp = $leftExp;
+        my $label = $o->get_nice_name($leftExp);
+        if ($operator =~ /\w/) {
+          $exp .= ' '.$operator.' ';
+          $label .= ' '.$operator.' ';
+        } else {
+          $exp .= $operator;
+          $label .= $operator;
+        }
+        # if rightExp is a literal
+        if ($typenum == 1) {
+          if ($rightExp =~ /[\ \'\"]/) {
+            if ($rightExp !~ /\'/) {
+              $exp .= "'".$rightExp."'";
+              $label .= "'".$rightExp."'";
+            } else {
+              my $x = $rightExp; $x =~ s/\"//g;
+              $exp .= '"'.$x.'"';
+              $label .= '"'.$x.'"';
+            }
+          } else {
+            $exp .= $rightExp;
+            $label .= $rightExp;
+          }
+        }
+        # else lexp is col
+        else {
+          $exp .= $rightExp;
+          $label .= $o->get_nice_name($rightExp);
+        }
+        $buf .= "<td colspan=3><input type=hidden value='".escapeHTML($exp)."'><span>".escapeHTML($label)."</span></td>";
       }
-      $buf .= "</select></td><td><select class=op>";
-      foreach my $op (@op) {
-        $buf .= "<option";
-        $buf .= " selected" if $op eq $operator;
-        $buf .= ">$op";
+
+      # else present a widget to modify expression
+      else {
+        $buf .= "<td><select class=lexp>";
+        foreach my $c (@cols) {
+          $buf .= "<option value='".escapeHTML($c)."'";
+          $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char' && $$types{$c} ne 'clob';
+          $buf .= " selected" if $c eq $leftExp;
+          $buf .= ">".escapeHTML($o->get_nice_name($c));
+        }
+        $buf .= "</select></td><td><select class=op>";
+        foreach my $op (@op) {
+          $buf .= "<option";
+          $buf .= " selected" if $op eq $operator;
+          $buf .= ">$op";
+        }
+        $buf .= "</select></td><td><div class=rexptypesel><select class=rexp><optgroup label='Either: '><option value=''> type in a value </optgroup><optgroup label='OR select another field'>";
+        my $rightSelectedField;
+        $rightSelectedField = $rightExp if $type == 3;
+        foreach my $c (@cols) {
+          $buf .= "<option value='".escapeHTML($c)."'";
+          $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char';
+          $buf .= " selected" if $c eq $rightSelectedField;
+          $buf .= ">".escapeHTML($o->get_nice_name($c));
+        }
+        $buf .= "</optgroup></select><input type=text class=rexp";
+        if ($rightSelectedField) {
+          $buf .= " style='display: none;'";
+        } else {
+          $buf .= " value='".escapeHTML($rightExp)."'";
+        }
+        $buf .= "></div></td>";
       }
-      $buf .= "</select></td><td><div class=rexptypesel><select class=rexp><optgroup label='Either: '><option value=''> type in a value </optgroup><optgroup label='OR select another field'>";
-      my $rightSelectedField;
-      $rightSelectedField = $rightExp if $type == 3;
-      foreach my $c (@cols) {
-        $buf .= "<option value='".escapeHTML($c)."'";
-        $buf .= " data-type=".$$types{$c} if $$types{$c} ne 'char';
-        $buf .= " selected" if $c eq $rightSelectedField;
-        $buf .= ">".escapeHTML($$o{schema}{select}{$c}[2]);
-      }
-      $buf .= "</optgroup></select><input type=text class=rexp";
-      if ($rightSelectedField) {
-        $buf .= " style='display: none;'";
-      } else {
-        $buf .= " value='".escapeHTML($rightExp)."'";
-      }
-      $buf .= "></div></td><td>";
+
+
+      $buf .= "<td>";
       if ($numRightParen == 0) {
         $buf .= "<button type=button class=rp>)</button>";
       } else {

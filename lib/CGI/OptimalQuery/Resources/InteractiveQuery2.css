@@ -351,7 +351,7 @@ form.OQform {
 }
 .OQFilterPanel td {
   text-align: center;
-  vertical-align: top;
+  vertical-align: middle;
   padding: 2px;
 }
 .OQFilterPanel select, .OQFilterPanel input {
@@ -363,7 +363,7 @@ form.OQform {
 .OQFilterPanel .rexptypesel {
   position: relative;
   width: 200px;
-  height: .9em;
+  height: 1.6em;
 }
 .OQFilterPanel .rexptypesel input {
   position: absolute;

@@ -939,7 +939,8 @@ sub parseFilter {
       }
 
       # else if rexp is a word
-      elsif ($f =~ /\G(\S+)\s*/gc) {
+      # can't use \S because that matches closing parenthesis
+      elsif ($f =~ /\G(\w+)\s*/gc) {
         $rexp = $1;
 
         # is word a col alias?
@@ -1348,17 +1349,13 @@ sub generateFilterSQL {
         $rightSql .= $postSql;
       }
 
-      my $sql = '(' x $numLeftParen;
-      $sql .= $leftSql;
-      $sql .= ' '.$operator;
-      $sql .= ' '.$rightSql if $rightSql ne '';
-      $sql .= ')' x $numRightParen;
+      my $lp = '(' x $numLeftParen;
+      my $rp = ')' x $numRightParen;
 
       # glue expression
-      push @sql,   $sql;
+      push @sql,   $lp.$leftSql.' '.$operator.' '.$rightSql.$rp;
       push @binds, @leftBinds, @rightBinds;
-      push @name, $leftName,  $operatorName;
-      push @name, $rightName  if $rightName ne '';
+      push @name, $lp.$leftName,  $operatorName, $rightName.$rp;
       $deps{$_}=1  for @$leftDeps;
     }
 
@@ -1383,16 +1380,16 @@ sub generateFilterSQL {
       }
       ($filterSql, @filterBinds) = @$filterSql if ref($filterSql) eq 'ARRAY'; 
 
+      my $lp = '(' x $numLeftParen;
+      my $rp = ')' x $numRightParen;
 
-      my $sql = '(' x $numLeftParen;
-      # put expression in parenthesis since it may contain OR expression without parenthesis which will screw up order of operations
-      $sql .= '('.$filterSql.')';
-      $sql .= ')' x $numRightParen;
+      # ensure expression has its own parenthesis since it may contain OR expression without parenthesis which will screw up order of operations
+      $filterSql = '('.$filterSql.')' if $numLeftParen == 0 || $numRightParen == 0;
 
       # glue expression
-      push @sql,   $sql;
+      push @sql,   $lp.$filterSql.$rp;
       push @binds, @filterBinds;
-      push @name, $filterLabel; 
+      push @name, $lp.$filterLabel.$rp;
 
       if (ref($filterDeps) eq 'ARRAY') {
         $deps{$_}=1 for @$filterDeps;
@@ -1454,14 +1451,13 @@ sub generateFilterSQL {
           : "CONCAT('%',$leftSql,'%')";
       }
 
-      my $sql = '(' x $numLeftParen;
-      $sql .= "$leftSql $operator $rightSql";
-      $sql .= ')' x $numRightParen;
+      my $lp = '(' x $numLeftParen;
+      my $rp = ')' x $numRightParen;
 
       # glue expression
-      push @sql,   $sql;
+      push @sql,   $lp.$leftSql.' '.$operator.' '.$rightSql.$rp;
       push @binds, @leftBinds, @rightBinds;
-      push @name, $leftName,  $operatorName, $rightName;
+      push @name, $lp.$leftName,  $operatorName, $rightName.$rp;
       $deps{$_}=1  for @$leftDeps;
       $deps{$_}=1  for @$rightDeps;
     }

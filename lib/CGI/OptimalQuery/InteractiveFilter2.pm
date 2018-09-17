@@ -195,13 +195,15 @@ sub output {
           }
           my $prefix = '_nfarg'.++$seq;
 
+          $$o{q}->param($prefix, @$argArray); # raw params for named filter
+
           while (my ($name,$vals) = each %args) {
             $$o{q}->param($prefix.$name, @$vals);
           }
           $buf .= 
-            '<input type=hidden value="'.escapeHTML("$namedFilter(").'">'
+            '<input type=hidden class=nf_start value="'.escapeHTML("$namedFilter(").'">'
             .$$nf{html_generator}->($$o{q}, $prefix)
-            .'<input type=hidden value="'.escapeHTML(")").'">';
+            .'<input type=hidden class=nf_end value="'.escapeHTML(")").'">';
         } else {
           my $title;
           if (ref($$nf{sql_generator}) eq 'CODE') {

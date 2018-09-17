@@ -31,7 +31,6 @@ lib/CGI/OptimalQuery/LoadSearchTool.pm
 lib/CGI/OptimalQuery/PrinterFriendly.pm
 lib/CGI/OptimalQuery/RecView.pm
 lib/CGI/OptimalQuery/Resources/add.gif
-lib/CGI/OptimalQuery/Resources/add_col.gif
 lib/CGI/OptimalQuery/Resources/arrow-left-3.png
 lib/CGI/OptimalQuery/Resources/arrow-right-3.png
 lib/CGI/OptimalQuery/Resources/blank.gif
@@ -44,15 +43,9 @@ lib/CGI/OptimalQuery/Resources/InteractiveQuery2.css
 lib/CGI/OptimalQuery/Resources/InteractiveQuery2.js
 lib/CGI/OptimalQuery/Resources/jquery.js
 lib/CGI/OptimalQuery/Resources/list-add-5.png
-lib/CGI/OptimalQuery/Resources/page-white_delete.png
 lib/CGI/OptimalQuery/Resources/page-white_go.png
-lib/CGI/OptimalQuery/Resources/page-white_link.png
-lib/CGI/OptimalQuery/Resources/present.gif
-lib/CGI/OptimalQuery/Resources/sort.gif
 lib/CGI/OptimalQuery/Resources/sortDown.gif
-lib/CGI/OptimalQuery/Resources/sortDownText.gif
 lib/CGI/OptimalQuery/Resources/sortUp.gif
-lib/CGI/OptimalQuery/Resources/sortUpText.gif
 lib/CGI/OptimalQuery/Resources/view-filter.png
 lib/CGI/OptimalQuery/Resources/view-left-close.png
 lib/CGI/OptimalQuery/Resources/view-refresh-4.png
@@ -60,7 +53,6 @@ lib/CGI/OptimalQuery/Resources/view-right-new.png
 lib/CGI/OptimalQuery/Resources/view-sort-ascending.png
 lib/CGI/OptimalQuery/Resources/view-sort-descending.png
 lib/CGI/OptimalQuery/Resources/view-statistics.png
-lib/CGI/OptimalQuery/Resources/view.gif
 lib/CGI/OptimalQuery/SavedSearches.pm
 lib/CGI/OptimalQuery/SaveSearchTool.pm
 lib/CGI/OptimalQuery/ShowColumns.pm

@@ -263,6 +263,7 @@ $buf = '';
     $buf .= " data-noselect" if $$colOpts{disable_select} || $opts{disable_select};
     $buf .= " data-nosort"   if $$colOpts{disable_sort}   || $opts{disable_sort};
     $buf .= " data-nofilter" if $$colOpts{disable_filter} || $opts{disable_filter};
+    $buf .= " data-canUpdate" if $$o{oq}->canUpdate($colAlias);
     $buf .= ">".escapeHTML($o->get_nice_name($colAlias))."</td>";
   }
   $buf .= "
@@ -373,6 +374,7 @@ $buf = '';
 <div class=OQformBottom>$opts{OQformBottom}</div>
 <div class=OQBlocker></div>
 <div class=OQColumnCmdPanel>
+  <button type=button class=OQUpdateDataToolBut title='update column values'>update</button>
   <button type=button class=OQLeftBut title='move column left'>move left</button>
   <button type=button class=OQRightBut title='move column right'>move right</button>
   <button type=button class=OQSortBut title='sort column A-Z'>sort</button>

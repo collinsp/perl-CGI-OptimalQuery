@@ -9,7 +9,7 @@ use CGI::OptimalQuery::SavedSearches();
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.32';
+    $VERSION     = '0.33';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -33,6 +33,7 @@ our %DEFAULT_MODULES = (
   'JSON'              => 'CGI::OptimalQuery::JSON',
   'InteractiveQuery2' => 'CGI::OptimalQuery::InteractiveQuery2',
   'InteractiveFilter2' => 'CGI::OptimalQuery::InteractiveFilter2',
+  'UpdateDataTool'    => 'CGI::OptimalQuery::UpdateDataTool',
   'ShowColumns'        => 'CGI::OptimalQuery::ShowColumns',
   'InteractiveQuery2Tools' => 'CGI::OptimalQuery::InteractiveQuery2Tools'
 );
@@ -276,7 +277,7 @@ hides the select field and data from being viewed by the user. Data for this sel
 
 =item B<< always_select => 1 >>
 
-tells OptimalQuery to always select the column regardless if it isn't explicitly being used in the show. This does not automatically make it shown to the user, but it will be available to the developer in callbacks.
+Indicate if batch updates are enabled. If options: table, key_select, key_column are not defined, OQ will look for their values in the dependent join option or OQ will try to automatically discover the configuration.
 
 =item B<< select_sql => (STRING | ARRAYREF) >>
 
@@ -294,6 +295,16 @@ Note: Oracle's date component also has a built-in time component. If the data is
 
   DATE_COL => ['DEP1', 'trunc(dep1.date_field)', 'My Date',
                  { date_format => 'MM/DD/YYYY' } ]
+
+=item B<< enable_update => 1 >>
+
+=item B<< enable_update => { column => 'fname' } >>
+
+=item B<< enable_update => { table => 'user', key_field => 'U_ID', key_column => 'id', column => 'fname' } >>
+
+Indicates if batch updates should be allowed for this field. If the table, key_field, or key_column are not defined, OQ will look for these values in the enable_update join options. If the value still does not exist, OQ will attempt to extract the info from the data model automatically.
+
+=back
 
 =back
 
@@ -332,16 +343,18 @@ The following KEY/VALUES below describe OPTIONS used by the joins configuration.
 
 =item B<< always_join => 1 >>
 
-tells OptimalQuery to always include join in query. Usfual when the join itself influences the number of results returned. Alternatively, an inline view could be constructed that performs the joins as part of the driving data set.
+tells OptimalQuery to always include join in query. Useful when the join itself influences the number of results returned. Alternatively, an inline view could be constructed that performs the joins as part of the driving data set.
 
 =item B<< new_cursor => 1 >>
+
+=item B<< new_cursor_order_by => "some_field.id" >>
 
 tells OptimalQuery to open a new cursor for this join. This can be used to select and filter multi-value fields.
 Optionally, an order_by param can be specified to sort the results returned by the cursor as such:
 
-=item B<< new_cursor_order_by => "some_field.id" >>
+=item B<< enable_update => { table => 'user', key_field => 'U_ID', key_column => 'id' } >>
 
-=back
+Provides a way to set default enable_update configuration for all fields that use the join. The enable_update still must be set on the select option.
 
 =back
 
@@ -428,6 +441,31 @@ OptimalQuery is made up of several modules. The 'options' configuration allows d
 =item B<< output_handler => sub { print @_; } >>
 
 override default output handler (print to STDOUT), by defining this callback.
+
+=item B<< after_update_handler => sub { } >>
+
+if data updates are enabled, provide an optional callback react changes made by user
+
+  $$schema{after_update_handler} = sub {
+    my %opts = @_;
+
+    # options stores the filters used to generate the where clause, the
+    # updated newValues, and the previous oldValues assigned to each record
+    # %opts = (
+    #   filter=>'[ROOM] contains "123" AND someNamedFilter()',
+    #   hiddenFilter => 'isActive()'
+    #   forceFilter => '[OWNER_ID]=123'
+    #   newValues => { INNERLOC => 'shelf B', OWNER_ID => 345 }
+    #   oldValues => [['U_ID','INNERLOC','OWNER_ID'],[78,'fridge B', 123],[45,'shelf A',123]]
+    # )
+    print STDERR "batch update was: ".encode_json(\%opts)."\n";
+
+    # note throwing an exception will automatically rollback the transaction
+    # can check the opts data or run SQL checks and rollback if neccessary 
+    die "prevent commit\n" if $shouldCancelUpdate;
+
+    return undef;
+  };
 
 =item B<< q => new CGI() >>
 

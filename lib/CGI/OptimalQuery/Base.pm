@@ -66,6 +66,7 @@ sub new {
   $$o{schema}{title} ||= "";
   $$o{schema}{options} ||= {};
   $$o{schema}{resourceURI} ||= $ENV{OPTIMALQUERY_RESOURCES} || '/OptimalQuery';
+  $$o{schema}{savedSearchUserID} ||= undef;
 
   if (! $$o{schema}{URI}) {
     $_ = ($$o{q}->can('uri')) ? $$o{q}->uri() : $ENV{REQUEST_URI}; s/\?.*$//;
@@ -132,12 +133,6 @@ sub new {
       $$o{oq}{select}{$selectAlias}[3]{disable_sort} = 1;
       $$o{oq}{select}{$selectAlias}[3]{disable_filter} = 1;
     }
-
-    # if a select column has additional select fields specified in options, make sure that the options array is an array
-    if ($$o{oq}{select}{$selectAlias}[3]{select} && ref($$o{oq}{select}{$selectAlias}[3]{select}) ne 'ARRAY') {
-      my @x = split /\ *\,\ */, $$o{oq}{select}{$selectAlias}[3]{select};
-      $$o{oq}{select}{$selectAlias}[3]{select} = \@x;
-    }
   }
 
   # if any fields are passed into on_select, ensure they are always selected
@@ -153,15 +148,10 @@ sub new {
   # check schema validity
   $$o{oq}->check_join_counts() if $$o{schema}{check} && ! defined $$o{q}->param('module');
 
-  # install the export tool
+  # install tools
   CGI::OptimalQuery::ExportDataTool::activate($o);
-
-  # if savedSearchUserID enable savereport and loadreport tools
-  $$o{schema}{savedSearchUserID} ||= undef;
-  if ($$o{schema}{savedSearchUserID} =~ /^\d+$/) {
-    CGI::OptimalQuery::LoadSearchTool::activate($o);
-    CGI::OptimalQuery::SaveSearchTool::activate($o);
-  }
+  CGI::OptimalQuery::LoadSearchTool::activate($o);
+  CGI::OptimalQuery::SaveSearchTool::activate($o);
 
   # run on_init function for each enabled tool
   foreach my $v (values %{ $$o{schema}{tools} }) {
@@ -316,8 +306,8 @@ sub get_sort         { $_[0]->sth->sort_descr() }
 sub get_query        { $_[0]{query}     }
 sub get_nice_name    {
   my ($o, $colAlias) = @_;
-  return $$o{schema}{select}{$colAlias}[2]
-    || join(' ', map { ucfirst } split /[\ \_]+/, $colAlias);
+  $$o{schema}{select}{$colAlias}[2] ||= join(' ', map { ucfirst } split /[\ \_]+/, $colAlias);
+  return $$o{schema}{select}{$colAlias}[2];
 }
 sub get_num_usersel_cols { scalar @{$_[0]{show}} }
 sub get_usersel_cols { $_[0]{show} }

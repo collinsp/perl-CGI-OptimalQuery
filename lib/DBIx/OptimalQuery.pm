@@ -253,7 +253,7 @@ sub add_limit_sql {
   my ($sth) = @_;
 
   #$$sth{oq}{error_handler}->("DEBUG: \$sth->add_limit_sql()\n") if $$sth{oq}{debug};
-  my $lo_limit = $$sth{limit}[0] || 0;
+  my $lo_limit = $$sth{limit}[0] || 1;
   my $hi_limit = $$sth{limit}[1] || $sth->count();
   my $c = $sth->{cursors}->[0];
 
@@ -275,7 +275,7 @@ WHERE tablernk2.RANK >= ? ";
   # sqlserver doesn't support limit/offset until Sql Server 2012 (which I don't have to test)
   # the workaround is this ugly hack...
   elsif ($$sth{oq}{dbtype} eq 'Microsoft SQL Server') {
-    die "missing required U_ID in select" unless exists $$sth{oq}{select}{U_ID};
+    die "missing required U_ID in select\n" unless exists $$sth{oq}{select}{U_ID};
 
     my $sql = $c->{sql};
 
@@ -422,7 +422,7 @@ sub create_select {
       my ($dep,$sql) = @$part;
       my $key = 'DBIXOQMJK'.$parent_bind_tag_idx; $parent_bind_tag_idx++;
       my $parent_cursor_idx = $dep_idx->{$dep};
-      die "could not find dep: $dep for new cursor" if $parent_cursor_idx eq '';
+      die "could not find dep: $dep for new cursor\n" if $parent_cursor_idx eq '';
       push @{ $sth->{'cursors'}->[$parent_cursor_idx]->{select_field_order} }, $key;
       push @{ $sth->{'cursors'}->[$parent_cursor_idx]->{select_sql} }, "$dep.$sql AS $key";
       push @{ $sth->{'cursors'}->[$i]->{'parent_keys'} }, $key;
@@ -448,7 +448,7 @@ sub create_select {
       } elsif ($$sth{oq}{dbtype} eq 'mysql') {
         $$select_sql[0] = "date_format(".$$select_sql[0].",'".$$select[3]{date_format}."')";
       } else {
-        die "unsupported DB";
+        die "unsupported DB\n";
       }
     }
 
@@ -589,12 +589,14 @@ sub fetchrow_hashref {
   if (my $v = $c->{sth}->fetch()) { 
 
     foreach my $i (0 .. $#$v) {
-
       # if col type is decimal auto trim 0s after decimal
       if ($c->{sth}->{TYPE}->[$i] eq '3' && $$v[$i] =~ /\./) {
         $$v[$i] =~ s/0+$//;
         $$v[$i] =~ s/\.$//;
       }
+
+      # cast to numeric if database type is a num
+      $$v[$i]+=0 if $$v[$i] ne '' && $DBIx::OptimalQuery::TYPE_MAP{$$c{sth}{TYPE}[$i]} eq 'num';
     }
  
     $sth->{'fetch_index'}++;
@@ -692,13 +694,7 @@ sub count {
     }
 
     # generate sql and bind params
-    my $sql = "
-SELECT count(*)
-FROM (
-  SELECT $drivingTable.*
-  FROM $from_sql
-  $where
-) cnt_query";
+    my $sql = "SELECT COUNT(1) FROM $from_sql $where";
     my @binds = (@from_binds, @old_join_binds, @{$c->{where_binds}});
 
     eval {
@@ -815,11 +811,11 @@ sub new {
   $$oq{debug} ||= 0;
   #$$oq{error_handler}->("DEBUG: $class->new(".Dumper(\%args).")\n") if $$oq{debug};
 
-  die "BAD_PARAMS - must provide a dbh!"
+  die "BAD_PARAMS - must provide a dbh!\n"
     unless $oq->{'dbh'};
-  die "BAD_PARAMS - must define a select key in call to constructor"
+  die "BAD_PARAMS - must define a select key in call to constructor\n"
     unless ref($oq->{'select'}) eq 'HASH';
-  die "BAD_PARAMS - must define a joins key in call to constructor"
+  die "BAD_PARAMS - must define a joins key in call to constructor\n"
     unless ref($oq->{'joins'}) eq 'HASH';
 
 
@@ -831,7 +827,135 @@ sub new {
   return $oq;
 }
 
+sub canUpdate {
+  my ($oq, $selectAlias) = @_;
+  return !!$$oq{select}{$selectAlias}[3]{enable_update};
+}
 
+# returns ($key_field, $key_column, $table, $column) = $oq->getUpdateInfo($selectAlias)
+sub getUpdateInfo {
+  my ($oq, $selectAlias) = @_;
+  return undef unless $$oq{select}{$selectAlias}[3]{enable_update};
+
+  my $s  = $$oq{select}{$selectAlias};
+  my $so = ref($$s[3]{enable_update}) ? $$s[3]{enable_update} : {};
+  my $j  = $$oq{joins}{$$s[0][0]} or die "could not find join: $$s[0][0]\n";
+  my $jo = ref($$j[3]{enable_update}) ? $$j[3]{enable_update} : {};
+
+  my $column = $$so{column};
+  if (! $column) {
+    if ($$s[1][0] =~ /\.(\w+)$/) {
+      $column = $1;
+    } else {
+      die "missing enable_update.column for $selectAlias (can not auto find column from sql: $$s[1][0])\n";
+    }
+  }
+
+  my $key_field = $$so{key_field} || $$jo{key_field} || (! $$j[0][0] && exists $$oq{select}{U_ID} && 'U_ID');
+  die "missing enable_update.key_field for $selectAlias\n" unless exists $$oq{select}{$key_field};
+
+  my $key_column = $$so{key_column} || $$jo{key_column} || ($$oq{select}{$key_field}[1][0] =~ /\.(\w+)$/ && $1);
+  die "missing enable_update.key_column for $selectAlias\n" unless $key_column;
+
+  my $table = $$so{table} || $$jo{table};
+  if (! $table) {
+    $table = $$oq{select}{$key_field}[1][0];
+    $table =~ s/\.\w+$//; # strip column
+    die "missing enable_update.table for $selectAlias\n" unless $table;
+  }
+
+  return ($key_field, $key_column, $table, $column);
+}
+
+
+# my %updateOpts = (
+#   filter => "", hiddenFilter => "", forceFilter => "",
+#   newValues => { selectAlias1 => newVal, selectAlias2 => ['?', newVal], .. },
+#   oldValues => []   # OPTIONAL - if defined, will populate with log of previous data
+# );
+# $oq->update(%updateOpts);
+#
+# if oldValues is an array ref, it will be populated using format:
+#    [[ FieldHeader1, FieldHeader2, .. ], [Row1PrevVal1, Row1PrevVal2, ..], [Row2PrevVal1, Row2PrevVal2, ..] ]
+# if oldValues is a scalar ref, it will be populated using CSV format
+sub update {
+  my ($oq, %opts) = @_;
+
+  die "missing newValues\n" unless ref($opts{newValues}) eq 'HASH';
+
+  my %updates;
+
+  # show key fields that will be used to perform update
+  { my %show;
+    foreach my $selectAlias (sort keys %{ $opts{newValues} }) {
+      my ($key_field, $key_column, $table, $column) = $oq->getUpdateInfo($selectAlias);
+      $show{$key_field}=1;
+      $show{$selectAlias}=1 if ref($opts{oldValues});
+      die "cannot update key_field\n" if exists $opts{newValues}{$key_field};
+      $updates{$table} ||= { key_field => $key_field, key_column => $key_column, key_vals => {}, sql=>[], bind=>[] };
+      if (ref($opts{newValues}{$selectAlias}) eq 'ARRAY') {
+        my ($sql, @bind) = @{ $opts{newValues}{$selectAlias} };
+        push @{ $updates{$table}{sql}  }, $column.'='.$sql;
+        push @{ $updates{$table}{bind} }, @bind;
+      } else {
+        my $val = $opts{newValues}{$selectAlias};
+        undef $val if $val =~ /^\s*$/;
+        push @{ $updates{$table}{sql}  }, $column.'=?';
+        push @{ $updates{$table}{bind} }, $val;
+      }
+    }
+    my @show = sort keys %show;
+    die "could not find key fields\n" if scalar(@show)==0;
+    $opts{show} = \@show;
+  }
+
+  # select all rows with their key info that need updating
+  my @oldValuesHeader;
+
+  my $sth = $oq->prepare(%opts);
+
+  my $totalRows=0;
+  while (my $h = $sth->fetchrow_hashref()) {
+    ++$totalRows;
+
+    # show we populate the oldValues array or scalar ref?
+    if (exists $opts{oldValues}) {
+      # add field header if we haven't already done so
+      if ($#oldValuesHeader==-1) {
+        @oldValuesHeader = sort keys %$h;
+        if (ref($opts{oldValues}) eq 'ARRAY') {
+          push @{ $opts{oldValues} }, \@oldValuesHeader;
+        } else {
+          die "oldValues should be an array ref or scalar ref\n";
+        }
+      }
+
+      # include data row
+      my @oldVals = @$h{ @oldValuesHeader };
+      push @{ $opts{oldValues} }, \@oldVals if $opts{oldValues};
+    }
+
+    # remember key values which will be used in update
+    foreach my $table (keys %updates) {
+      my $key_val = $$h{ $updates{$table}{key_field} };
+      $updates{$table}{key_vals}{$key_val}=1 if $key_val ne '';
+    }
+  }
+
+  # do updates
+  foreach my $table (keys %updates) {
+    my $sql = "UPDATE $table SET ".join(',', @{$updates{$table}{sql}})." WHERE $updates{$table}{key_column}=?";
+    my @key_vals = keys %{ $updates{$table}{key_vals} };
+    if (scalar(@key_vals) > 0) {
+      my $sth = $$oq{dbh}->prepare($sql);
+      foreach my $key_val (@key_vals) {
+        $sth->execute( @{ $updates{$table}{bind} }, $key_val);
+      }
+    }
+  }
+
+  return $totalRows;
+}
 
 # returns [
 #  # type 1 - (selectalias operator literal)
@@ -1121,7 +1245,7 @@ sub generateFilterSQL {
                 $y = $1;
               }
               else {
-                die "could not parse date: $rval";
+                die "could not parse date: $rval\n";
               }
 
               # extract time component if the type supports it
@@ -1282,7 +1406,7 @@ sub generateFilterSQL {
       my @path = ($$leftDeps[0]);
       my $i=0;
       while (1) {
-        die "infinite dep loop detected" if ++$i==50;
+        die "infinite dep loop detected\n" if ++$i==50;
         my $parentDep = $$oq{joins}{$path[-1]}[0][0];
         last unless $parentDep;
         push @path, $parentDep;
@@ -1603,7 +1727,7 @@ sub _normalize {
 
     # make sure defined deps exist
     foreach my $dep (@{ $$oq{'select'}{$col}[0] }) {
-      die "dep $dep for select $col does not exist" 
+      die "dep $dep for select $col does not exist\n"
         if defined $dep && ! exists $$oq{'joins'}{$dep};
     }
   }
@@ -1615,7 +1739,7 @@ sub _normalize {
       if (ref($opts->{new_cursor}) ne 'HASH') {
         $oq->_formulate_new_cursor($join);
       } else {
-        die "could not find keys, join, and sql for new cursor in $join"
+        die "could not find keys, join, and sql for new cursor in $join\n"
           unless exists $opts->{new_cursor}->{'keys'} &&
                  exists $opts->{new_cursor}->{'join'} &&
                  exists $opts->{new_cursor}->{'sql'};
@@ -1624,7 +1748,7 @@ sub _normalize {
 
     # make sure defined deps exist
     foreach my $dep (@{ $$oq{'joins'}{$join}[0] }) {
-      die "dep $dep for join $join does not exist" 
+      die "dep $dep for join $join does not exist\n" 
         if defined $dep && ! exists $$oq{'joins'}{$dep};
     }
   }
@@ -1632,7 +1756,7 @@ sub _normalize {
   # make sure deps for named_sorts exist
   foreach my $named_sort (keys %{ $$oq{'named_sorts'} }) {
     foreach my $dep (@{ $$oq{'named_sorts'}{$named_sort}->[0] }) {
-      die "dep $dep for named_sort $named_sort does not exist"
+      die "dep $dep for named_sort $named_sort does not exist\n"
         if defined $dep && ! exists $$oq{'joins'}{$dep};
     }
   }
@@ -1641,7 +1765,7 @@ sub _normalize {
   foreach my $named_filter (keys %{ $$oq{'named_filters'} }) {
     if (ref($$oq{'named_filters'}{$named_filter}) eq 'ARRAY') {
       foreach my $dep (@{ $$oq{'named_filters'}{$named_filter}->[0] }) {
-        die "dep $dep for named_sort $named_filter does not exist"
+        die "dep $dep for named_sort $named_filter does not exist\n"
           if defined $dep && ! exists $$oq{'joins'}{$dep};
       }
     }
@@ -1680,7 +1804,7 @@ sub _formulate_new_cursor {
   # if NOT an SQL-92 type join
   if (defined $whereSql) {
     $whereSql =~ s/\(\+\)/\ /g; # remove outer join notation
-    die "BAD_PARAMS - where binds not allowed in 'new_cursor' joins"
+    die "BAD_PARAMS - where binds not allowed in 'new_cursor' joins\n"
       if scalar(@whereBinds);
   } 
 
@@ -1714,7 +1838,7 @@ sub _formulate_new_cursor {
     }
 
     else {
-      die "could not parse tablename";
+      die "could not parse tablename\n";
     }
 
     # include alias if it exists
@@ -1825,14 +1949,11 @@ FROM (
   return undef;
 }
 
-
-
 =comment
   $oq->get_col_type($alias,$context);
 =cut
-sub type_map {
-  my $oq = shift;
-  return {
+
+our %TYPE_MAP = (
   -1 => 'char',
   -2 => 'clob',
   -3 => 'clob',
@@ -1866,8 +1987,9 @@ sub type_map {
   'TEXT' => 'char',
   'VARCHAR' => 'char',
   'varchar' => 'char'
-  };
-}
+);
+sub type_map { return \%TYPE_MAP };
+
 
 # $type = $oq->get_col_type($alias,$context);
 sub get_col_type {
@@ -2001,7 +2123,6 @@ LIMIT 0 ";
     }
 
     # read types into col_types cache in object
-    my $type_map = $oq->type_map();
     for (my $i=0; $i < scalar(@selectColAliasOrder); $i++) {
       my $name = $selectColAliasOrder[$i];
       my $type_code = $sth->{TYPE}->[$i];
@@ -2009,8 +2130,8 @@ LIMIT 0 ";
       # remove parenthesis in type_code from sqlite
       $type_code =~ s/\([^\)]*\)//;
  
-      my $type = $type_map->{$type_code} or 
-        die "could not find type code: $type_code for col $name";
+      my $type = $DBIx::OptimalQuery::TYPE_MAP{$type_code} or 
+        die "could not find type code: $type_code for col $name\n";
       $oq->{'col_types'}->{$selectColTypeOrder[$i]}->{$name} = $type;
 
       # set the type for select, filter, and sort to the default
@@ -2072,7 +2193,7 @@ sub _order_deps {
 
     # detect infinite recursion
     $maxRecurse--;
-    die "BAD_JOINS - could not link joins to meet all deps" if $maxRecurse == 0;
+    die "BAD_JOINS - could not link joins to meet all deps\n" if $maxRecurse == 0;
 
     # recursion to make sure parent deps are added first
     if (defined $oq->{'joins'}->{$dep}->[0]) {

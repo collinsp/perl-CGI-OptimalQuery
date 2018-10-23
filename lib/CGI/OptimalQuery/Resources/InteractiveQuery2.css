@@ -72,7 +72,7 @@ form.OQform {
   display: none;
 }
 
-.OQAddColumnsPanel, .OQFilterPanel, .OQHelpPanel {
+.OQAddColumnsPanel, .OQFilterPanel, .OQHelpPanel, .OQUpdateDataToolPanel {
   display: none;
   position: absolute;
   top: 80px;
@@ -80,6 +80,25 @@ form.OQform {
   right: 10px;
   background-color: #fff;
   border: 2px solid #ccc;
+}
+.OQUpdateDataToolPanel {
+  max-width: 1000px;
+  margin: auto;
+}
+.OQUpdateDataToolPanel .errmsg {
+  text-align: left;
+  border: 1px solid #ccc !important;
+  background-color: #eee;
+  padding: 10px;
+}
+.OQUpdateDataToolPanel table {
+  width: 100%;
+}
+.OQUpdateDataToolPanel td {
+  width: 50%;
+}
+.OQUpdateDataToolPanel td input[name=values] {
+  width: 95%;
 }
 
 .OQHelpPanel h3 {
@@ -309,7 +328,7 @@ form.OQform {
 }
 
 
-.OQAddColumnsPanel h1, .OQFilterPanel h1 {
+.OQAddColumnsPanel h1, .OQFilterPanel h1, .OQUpdateDataToolPanel h1 {
   font-size: 1.4em;
   margin: .2em;
   text-align: center;
@@ -384,11 +403,13 @@ form.OQform {
 
 
 .LoadingData .OQBlocker, 
-.OQFilterMode .OQBlocker,
-.OQAddColumnsMode .OQBlocker,
 .OQHelpMode .OQBlocker,
-.OQAddColumnsMode .OQAddColumnsPanel,
+.OQFilterMode .OQBlocker,
 .OQFilterMode .OQFilterPanel,
+.OQAddColumnsMode .OQBlocker,
+.OQAddColumnsMode .OQAddColumnsPanel,
+.OQUpdateDataToolMode .OQBlocker,
+.OQUpdateDataToolMode .OQUpdateDataToolPanel,
 .OQHelpMode .OQHelpPanel {
   display: block;
 }
@@ -554,6 +575,9 @@ a.OQeditBut, a.OQnewBut {
 .OQStatsBut {
   background-image: url(view-statistics.png);
 }
+.OQUpdateDataToolBut {
+  background-image: url(edit.png);
+}
 .OQToolsCancelBut {
   position:absolute;
   right:4px;
@@ -617,7 +641,7 @@ label.ckbox, table.OQdata thead  {
   -ms-user-select: none;
   user-select: none;
 }
-.OQAddColumnsPanel {
+.OQAddColumnsPanel, .OQUpdateDataToolPanel {
   padding: 15px;
 }
 .OQAddColumnsPanel .ckbox {
@@ -719,6 +743,24 @@ label.ckbox:hover {
   left:-20px;
 }
 
+/* simple table styles */
+.OQdoc table.grid {
+  border-collapse: collapse;
+}
+.OQdoc table.grid thead td {
+  text-align: center;
+  background-color: #ddd;
+  font-size: .8em;
+  font-weight: bold;
+  color: #444;
+}
+.OQdoc table.grid td {
+  border: 1px solid #ccc;
+  padding: 4px;
+}
+.OQdoc table.grid tr:nth-child(even) td {
+  background-color: #eee;
+}
 
 @media (max-width: 600px) {
   .OQtitle, .OQsummary {

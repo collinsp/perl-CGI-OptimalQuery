@@ -46,6 +46,7 @@ sub load_saved_search {
   }
   my ($params) = $$o{dbh}->selectrow_array(
     "SELECT params FROM oq_saved_search WHERE id=?", undef, $id);
+  die "NOT_FOUND - saved search is not longer available\n" if $params eq '';
 
   if ($params) {
     $params = eval '{'.$params.'}'; 
@@ -77,8 +78,9 @@ sub on_init {
   }
 
   # request to load a saved search?
-  elsif ($$o{q}->param('OQLoadSavedSearch') =~ /^\d+$/) {
-    load_saved_search($o, $$o{q}->param('OQLoadSavedSearch'));
+  elsif ($$o{q}->param('OQLoadSavedSearch') =~ /^(\d+)$/) {
+    die "BAD_PRIV - cannot load a saved search as a guest user\n" unless $$o{schema}{savedSearchUserID};
+    load_saved_search($o, int($1));
   }
 
   # if intial request, load default saved search if it exists

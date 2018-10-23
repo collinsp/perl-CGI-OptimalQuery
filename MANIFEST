@@ -37,6 +37,7 @@ lib/CGI/OptimalQuery/Resources/blank.gif
 lib/CGI/OptimalQuery/Resources/close.gif
 lib/CGI/OptimalQuery/Resources/document-export-2.png
 lib/CGI/OptimalQuery/Resources/document-new-6.png
+lib/CGI/OptimalQuery/Resources/edit.png
 lib/CGI/OptimalQuery/Resources/filter.gif
 lib/CGI/OptimalQuery/Resources/help.png
 lib/CGI/OptimalQuery/Resources/InteractiveQuery2.css
@@ -57,6 +58,7 @@ lib/CGI/OptimalQuery/SavedSearches.pm
 lib/CGI/OptimalQuery/SaveSearchTool.pm
 lib/CGI/OptimalQuery/ShowColumns.pm
 lib/CGI/OptimalQuery/SimpleQuery.pm
+lib/CGI/OptimalQuery/UpdateDataTool.pm
 lib/CGI/OptimalQuery/XML.pm
 lib/DBIx/OptimalQuery.pm
 LICENSE

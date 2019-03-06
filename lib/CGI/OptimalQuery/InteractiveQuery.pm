@@ -366,7 +366,7 @@ sub output {
 <form id='OQform' name='OQform' action='".$$o{schema}{URI}."#OQtop' method='post'>
 <input type='hidden' name='act' value='' />
 <input type='hidden' name='view' value='' />
-
+".$o->csrf_field()."
 <script type='text/javascript' id='OQscript'>
 
 // code to open debug mode when ALT-Q is typed

@@ -9,7 +9,7 @@ use CGI::OptimalQuery::SavedSearches();
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.33';
+    $VERSION     = '0.34';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -78,7 +78,11 @@ sub new {
   $$schema{httpHeader} ||= \&CGI::header;
 
   # find module & class
-  my $module = $$schema{q}->param('module') || $$schema{module} || $DEFAULT_MODULE;
+  my $module = $$schema{q}->param('module') || $$schema{module};
+
+  if (! $module) {
+    $module = $$schema{joins} ? $DEFAULT_MODULE : 'CustomOutput';
+  }
   my $class = $$schema{modules}{$module} || $DEFAULT_MODULES{$module};
 
   # dynamically load class
@@ -518,6 +522,10 @@ If savedSearchUserID, is defined, setting savedSearchAlerts to 1 will enhance di
 
 Specify maximum record UIDs to store in saved search alert previously seen uid history. The previously stored list of UIDs is used to determine if a new record has appeared. Don't set this too high - the pks are stored in the saved search table. The default settings allow about 14k of data per saved search. (15 char key size * 1000 savedSearchAlertMaxRecs) / 1024 = 14k.
 
+=item B<< server_secret => "set to a secret consistent value for this server - used to prevent CSRF attacks" >>
+
+Specify a server secret used for security purposes for validating that the user intended to affect an action from a form. The secret should be stable and not change. If the secret changes, users will be required to reload the report. Does not affect the stability of saved searches.
+
 =item B<< savedSearchAlertEmailCharLimit => 500000 >>
 
 Maximum character limit of saved saerch alert email. If limit is reached, a message appears instructing the user reduce the size by hiding fields or modify filters. The default value is 500000 (~ .5MB)
@@ -534,6 +542,32 @@ If HTTP GET/POST params are required to dynamically generate a %CONFIG, the deve
 
 The URI back to the page the user is currently on. The default URI is taken from the REQUEST_URI ENV.
 
+=item B<< URI_utils => "/URI/To/OptimalQueryUtils" >>
+
+Optionally provide an endpoint to OQ functions that are not report related. Some OQ functions such as viewing saved searches, loading saved searches, and deleting saved searches are not report specific. If "URI_utils" is defined, OQ will use it instead of using the report endpoint. This is more efficient and less brittle. If a user loses authorization to a report that they have saved searches for, they won't have the ability to manage these saved searches because they are no longer authorized to access the report end point. The URI_utils end point should NOT have its own authorization checks. OQ will perform authoriation checks using the provided savedSearchUserID.
+
+  #############################
+  # example oqutils.pl endpoint
+  #############################
+
+  #!/usr/bin/perl
+
+  use strict;
+  use CGI::OptimalQuery();
+
+  # configure a regular OQ schema without the select, joins, filter, etc
+  # can use existing config builder or CGI::OptimalQuery subclass
+  # At a minimum, your schema config should define.
+  my $schema = {
+    q => new CGI(),
+    dbh => $dbh,
+    URI_utils => 'https://foo/cgi-bin/oqutils.pl',
+    savedSearchUserID => $CURRENT_LOGGED_IN_USERID,
+    server_secret => $SERVER_APP_SECRET
+  };
+
+  # OQ will send all output (headers and body)
+  CGI::OptimalQuery->new($schema)->print();
 
 =item B<< URI_standalone => "/URI/Back/To/This/Page?layout=off" >>
 

@@ -43,6 +43,34 @@ sub new {
   my $sth = bless \%args, $class;
   $sth->{oq} = $oq;
   $sth->_normalize();
+
+  # fields can depend on other fields
+  # collect all dependent fields AND $args{show} AND U_ID AND always_select fields into a new show array
+  { my %processed;
+    my @unprocessed = @{$args{show}};
+    push @unprocessed, "U_ID" if $$oq{select}{U_ID}; # always select unique record identifier if available
+
+    #include always_select fields
+    push @unprocessed, grep { $$oq{select}{$_}[3]{always_select} } keys %{ $$oq{select} };
+
+    # for all fields to show, find dependent fields and add them to unprocessed list
+    while ($#unprocessed > -1) {
+      my $colAlias = pop @unprocessed;
+      next if $processed{$colAlias};
+      next unless ref($$oq{select}{$colAlias}) eq 'ARRAY';
+      $processed{$colAlias}=1;
+      if (exists $$oq{select}{$colAlias}[3]{select}) {
+        my $x = $$oq{select}{$colAlias}[3]{select};
+        my @selectDeps = ref($x) eq 'ARRAY' ? @$x : split(",", $x);
+        foreach my $colAlias (@selectDeps) {
+          push @unprocessed, $colAlias unless $processed{$colAlias};
+        }
+      }
+    }
+    my @show = sort grep { $$oq{select}{$_}[1] } keys %processed;
+    $$sth{show} = \@show; 
+  }
+
   $sth->create_select();
   $sth->create_where();
   $sth->create_order_by();
@@ -635,79 +663,109 @@ sub finish {
   return undef;
 }
 
-# get count for sth
-sub count {
-  my $sth = shift;
+# execute a query row count and resolves calc_sql for all shown fields with a defined calc_sql property
+sub fetch_calc_fields {
+  my ($sth) = @_;
+  return $$sth{calc_fields} if $$sth{calc_fields};
+  
+  my $c = $sth->{cursors}->[0];
+  my $drivingTable = $$c{select_deps}[0];
 
-  # if count is not already defined, define it
-  if (! defined $sth->{count}) {
-    #$$sth{oq}{error_handler}->("DEBUG: \$sth->count()\n") if $$sth{oq}{debug};
+  # gather deps
+  my %deps;
+  $deps{$drivingTable}=1;
+  $deps{$_}=1 for @{$c->{where_deps}};
 
-    my $c = $sth->{cursors}->[0];
-
-    my $drivingTable = $c->{select_deps}->[0];
-
-    # only need to join in driving table with
-    # deps used in where clause
-    my ($deps) = $sth->{oq}->_order_deps($drivingTable, @{$c->{where_deps}});
-    my @from_deps; push @from_deps, @$_ for @$deps;
-
-    # create from_sql, from_binds
-    # vars prefixed with old_ is used for supported non sql-92 joins
-    my ($from_sql, @from_binds, $old_join_sql, @old_join_binds );
-    foreach my $from_dep (@from_deps) {
-      my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[1] };
-      push @from_binds, @binds if @binds;
-
-      # if this is the driving table join
-      if (! $sth->{oq}->{joins}->{$from_dep}->[0]) {
-
-        # alias it if not already aliased in sql
-        $sql .= " $from_dep" unless $sql =~ /\b$from_dep\s*$/;
-        $from_sql .= $sql;
+  # foreach show column that has a calcuation, add it to the select array
+  my (@select_sql, @select_binds);
+  push @select_sql, 'COUNT(1) _OQ_ROW_COUNT';
+  foreach my $selectAlias (@{ $$sth{show} }) {
+    my $opts = $$sth{oq}{select}{$selectAlias}[3];
+    if (ref($opts) eq 'HASH' && $$opts{calc_sql}) {
+      if (ref($$opts{calc_sql}) eq 'ARRAY') {
+        my ($sql, @binds) = @{ $$opts{calc_sql} };
+        push @select_sql, $sql.' '.$selectAlias;
+        push @select_binds, @binds;
+      } else {
+        push @select_sql, $$opts{calc_sql}.' '.$selectAlias;
       }
-
-      # if SQL-92 type join?
-      elsif (! $sth->{oq}->{joins}->{$from_dep}->[2]) {
-        $from_sql .= "\n".$sql;
+      my $selectDeps = $$sth{oq}{select}{$selectAlias}[0];
+      if (ref($selectDeps) eq 'ARRAY') {
+        $deps{$_}=1 for @$selectDeps;
+      } elsif ($selectDeps) {
+        $deps{$selectDeps}=1;
       }
-
-      # old style join
-      else {
-        $from_sql .= ",\n".$sql.' '.$from_dep;
-        my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[2] };
-        if ($sql) {
-          $old_join_sql .= " AND " if $old_join_sql ne '';
-          $old_join_sql .= $sql;
-        }
-        push @old_join_binds, @binds;
-      }
-    }
-
-
-    # construct where clause
-    my $where;
-    { my @where;
-      push @where, '('.$old_join_sql.') ' if $old_join_sql;
-      push @where, '('.$c->{where_sql}.') ' if $c->{where_sql};
-      $where = 'WHERE '.join("\nAND ", @where) if @where;
-    }
-
-    # generate sql and bind params
-    my $sql = "SELECT COUNT(1) FROM $from_sql $where";
-    my @binds = (@from_binds, @old_join_binds, @{$c->{where_binds}});
-
-    eval {
-      $$sth{oq}->{error_handler}->("SQL:\n$sql\nBINDS:\n".Dumper(\@binds)."\n") if $$sth{oq}{debug}; 
-      ($sth->{count}) = $sth->{oq}->{dbh}->selectrow_array($sql, undef, @binds);
-    }; if ($@) {
-      die "Problem finding count for SQL:\n$sql\nBINDS:\n".join(',',@binds)."\n\n$@\n";
     }
   }
 
-  return $sth->{count};
+  # only need to join in driving table with
+  # deps used in where clause
+  my ($deps) = $sth->{oq}->_order_deps(keys %deps);
+  my @from_deps; push @from_deps, @$_ for @$deps;
+
+  # create from_sql, from_binds
+  # vars prefixed with old_ is used for supported non sql-92 joins
+  my ($from_sql, @from_binds, $old_join_sql, @old_join_binds );
+  foreach my $from_dep (@from_deps) {
+    my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[1] };
+    push @from_binds, @binds if @binds;
+
+    # if this is the driving table join
+    if ($from_dep eq $$sth{oq}{driving_table}) {
+
+      # alias it if not already aliased in sql
+      $sql .= " $from_dep" unless $sql =~ /\b$from_dep\s*$/;
+      $from_sql .= $sql;
+    }
+
+    # if SQL-92 type join?
+    elsif (! $sth->{oq}->{joins}->{$from_dep}->[2]) {
+      $from_sql .= "\n".$sql;
+    }
+
+    # old style join
+    else {
+      $from_sql .= ",\n".$sql.' '.$from_dep;
+      my ($sql, @binds) = @{ $sth->{oq}->{joins}->{$from_dep}->[2] };
+      if ($sql) {
+        $old_join_sql .= " AND " if $old_join_sql ne '';
+        $old_join_sql .= $sql;
+      }
+      push @old_join_binds, @binds;
+    }
+  }
+
+
+  # construct where clause
+  my $where;
+  { my @where;
+    push @where, '('.$old_join_sql.') ' if $old_join_sql;
+    push @where, '('.$c->{where_sql}.') ' if $c->{where_sql};
+    $where = "\nWHERE ".join("\nAND ", @where) if @where;
+  }
+
+  # generate sql and bind params
+  my $sql = "SELECT ".join(',', @select_sql)."\nFROM $from_sql $where";
+  my @binds = (@select_binds, @from_binds, @old_join_binds, @{$c->{where_binds}});
+
+  eval {
+    $$sth{oq}->{error_handler}->("SQL:\n$sql\nBINDS:\n".Dumper(\@binds)."\n") if $$sth{oq}{debug}; 
+    $$sth{calc_fields} = $$sth{oq}{dbh}->selectrow_hashref($sql, undef, @binds);
+    $$sth{count} = delete $$sth{calc_fields}{_OQ_ROW_COUNT};
+  }; if ($@) {
+    die "Problem finding count for SQL:\n$sql\nBINDS:\n".join(',',@binds)."\n\n$@\n";
+  }
+
+  return $$sth{calc_fields};
 }
 
+# get count for sth
+sub count {
+  my ($sth) = @_;
+  $sth->fetch_calc_fields() unless defined $$sth{count}; # generates count property
+  return $$sth{count};
+}
+  
 sub fetch_index { $_->{'fetch_index'} }
 
 sub filter_descr {
@@ -1130,12 +1188,14 @@ sub generateFilterSQL {
       push @name, "OR";
     }
 
-    # [COLALIAS] != "literal"
+    # [COLALIAS] <operator> "literal" (operator is =,!=,<,<=,>,>=,contains,not contains)
     elsif ($$exp[0]==1) {
       my ($type, $numLeftParen, $leftColAlias, $operatorName, $rval, $numRightParen) = @$exp;
       $parenthesis+=$numLeftParen;
       $parenthesis-=$numRightParen;
 
+      my $lp = '(' x $numLeftParen;
+      my $rp = ')' x $numRightParen;
       my $operator = uc($operatorName);
 
       # handle left side of expression
@@ -1371,7 +1431,6 @@ sub generateFilterSQL {
 
         # like operator
         else {
-
           # convert contains operator to like
           if ($operatorName =~ /contains/i) {
             $leftSql = "LOWER($leftSql)" if $leftType eq 'char' || $leftType eq 'clob';
@@ -1401,88 +1460,128 @@ sub generateFilterSQL {
         }
       }
 
-      # if the leftSql uses a new cursor we need to write an exists expression
-      # search dep path to see if a new_cursor is used
-      my @path = ($$leftDeps[0]);
-      my $i=0;
-      while (1) {
-        die "infinite dep loop detected\n" if ++$i==50;
-        my $parentDep = $$oq{joins}{$path[-1]}[0][0];
-        last unless $parentDep;
-        push @path, $parentDep;
-      }
+      # This next code is a bit complex because OQ supports filters on field
+      # values that be multi-valued (they come from one-to-many relationships
+      # which are recognized in OQ with a "new_cursor" join option. For each
+      # dep used by this field that is being filtered, figure out the depGraph
+      # (tables to join together for field we are filtering on). Joins that do
+      # not use new_cursor option will simply be added to the %dep hash and OQ
+      # will join them into the main query. If any of the field deps (or its
+      # parent deps) use a new_cursor, they do NOT get added to the %dep hash
+      # for the main query. Instead we must create an EXISTS where clause since
+      # the relationship is one-to-many starting with the new_cursor dep
+      # closest to the driving table. Since there can be multiple deps for a
+      # field and its ancestor deps, we must walk the entire dep graph. yuck.
 
-      # find the oldest parent new cursor if it exists
-      while (@path) {
-        if ($$oq{joins}{$path[-1]}[3]{new_cursor}) {
-          last;
-        } else {
-          pop @path; 
+      # generate %depGraph by walking from field deps to driving table
+      my %depGraph;   # = ( parentdep1 => { childdep1 => 1, childdep2 => 1, .. }, parentdep2 => { childdep, .. } )
+      { my @unprocessedDeps = @$leftDeps;
+        while ($#unprocessedDeps > -1) {
+          my $dep = pop @unprocessedDeps;
+          foreach my $parentDep (@{$$oq{joins}{$dep}[0]}) {
+            push @unprocessedDeps, $parentDep unless $depGraph{$parentDep};
+            $depGraph{$parentDep}{$dep}=1;
+          }
         }
       }
-      
-      # if @path has elements, this uses a new_cursor and we must construct an exists expression
-      if (@path) {
-        @path = reverse @path;
-        my ($preSql, $postSql, @preBinds);
-        foreach my $joinDep (@path) {
-          my ($fromSql, @fromBinds) = @{ $$oq{joins}{$joinDep}[1] }; 
 
-          # unwrap SQL-92 join and add join to where
-          $fromSql =~ s/^\s+//;
-          $fromSql =~ s/^LEFT\s*//i;
-          $fromSql =~ s/^OUTER\s*//i;
-          $fromSql =~ s/^JOIN\s*//i;
-
-          my $corelatedJoin;
-          if ($fromSql =~ /^(.*)\bON\s*\((.*)\)\s*$/is) {
-            $fromSql = $1;
-            $corelatedJoin = $2;
+      # now walk driving table to all leaves in %depGraph, recording the
+      # $newCursorDep closest to driving table if it exists
+      my $newCursorDep;
+      { my %handledDeps;
+        my @unprocessedDeps=keys %{ $depGraph{$$oq{driving_table}} };
+        while ($#unprocessedDeps > -1) {
+          my $dep = pop @unprocessedDeps;
+          $handledDeps{$dep}=1; # ensure we do not process it again
+          if ($$oq{joins}{$dep}[3]{new_cursor}) {
+            $newCursorDep ||= $dep; # remember the first encountered new_cursor dep
           } else {
-            die "could not parse for corelated join\n";
-          }
-
-          # in a one2many filter that has a negative operator, we need to use
-          # a NOT EXISTS and unnegate the operator
-          if ($rightName eq "''") {
-            if ($operator eq '=') {
-              $preSql .= "NOT ";
-              $operator = '!=';
-            }
-            elsif ($operator eq 'IS NULL') {
-              $preSql .= "NOT ";
-              $operator = 'IS NOT NULL';
+            $deps{$dep}=1; # ensure dep is joined into main query
+            foreach my $childDep (keys %{$depGraph{$dep}}) {
+              next if $handledDeps{$childDep};
+              $handledDeps{$childDep}=1; # ensure this dep is only added to unprocessedDeps once
+              push @unprocessedDeps, $childDep;
             }
           }
-          elsif ($operator eq '!=') {
-            $operator = '=';
-            $preSql .= "NOT ";
-          }
-          elsif ($operator =~ s/NOT\ //) {
-            $preSql .= "NOT ";
-          }
-          $preSql .= " EXISTS (\n  SELECT 1\n  FROM $fromSql\n  WHERE ($corelatedJoin)\n  AND ";
-          $postSql .= ')';
-          push @preBinds, @fromBinds;
         }
-
-        # update left expression deps and binds
-        $leftDeps = $$oq{joins}{$path[0]}[0];
-        unshift @leftBinds, @preBinds if @preBinds;
-        $leftSql = $preSql.$leftSql;
-        $rightSql .= $postSql;
       }
 
-      my $lp = '(' x $numLeftParen;
-      my $rp = ')' x $numRightParen;
+      # if left expression field uses a new cursor, we need to create an exists
+      # SQL expression since the field data is one-to-many and the field is not
+      # in the main query.
+      if ($newCursorDep) {
+        my ($existsWord,$existsFrom,@existsFromBinds,$existsWhere,@existsWhereBinds);
+        $existsWord = 'EXISTS';
+  
+        ($existsFrom, @existsFromBinds) = @{ $$oq{joins}{$newCursorDep}[1] }; 
+        $existsFrom =~ s/^\s+//;
+        $existsFrom =~ s/^INNER\s+//i;
+        $existsFrom =~ s/^LEFT\s+//i;
+        $existsFrom =~ s/^OUTER\s+//i;
+        $existsFrom =~ s/^JOIN\s*//i;
+  
+        # extract join clause and add to $existsWhere
+        if ($existsFrom =~ /^(.*)\bON\s*\((.*)\)\s*$/is) {
+          $existsFrom = $1;
+          $existsWhere = $2;
+        }
+        die "missing existsFrom"  unless $existsFrom;
+        die "missing existsWhere" unless $existsWhere;
+  
+        my %handledDeps;
+        my @unprocessedDeps=keys %{$depGraph{$newCursorDep}};
+        while ($#unprocessedDeps > -1) {
+          my $dep = pop @unprocessedDeps;
+          $handledDeps{$dep}=1; # ensure we do not process it again
+          my ($join, @joinBinds) = @{ $$oq{joins}{$dep}[1] };
+          $existsFrom .= ' '.$join;
+          push @existsFromBinds, @joinBinds;
+          next if ! ref($depGraph{$dep}) eq 'HASH';
+          foreach my $childDep (keys %{$depGraph{$dep}}) {
+            next if $handledDeps{$childDep};
+            $handledDeps{$childDep}=1; # ensure this dep is only added to unprocessedDeps once
+            push @unprocessedDeps, $childDep;
+          }
+        }
+         
+        # if filter expression uses some type of negation, we need to use a
+        # NOT EXISTS expression and remove the negation from the operator
+        # for example:
+        # given a users report showing the multiple departments a user is in
+        # if filter is user_departments != 'chemistry'
+        # and user is in chemistry and physics
+        # the users will not match eventhough they are in chemistry
+        # when negation is used with an exists statement, the logic needs to change
+        # to NOT EXISTS (SELECT 1 .. WHERE user_departments='chemistry')
+        if ($rightName eq "''") {
+          if ($operator =~ /\!\=|NOT /i) {
+            $operator = 'IS NOT NULL';
+          } else {
+            $existsWord = 'NOT EXISTS';
+            $operator = 'IS NOT NULL';
+          }
+          $rightSql='';
+        }
+        elsif ($operator eq '!=') {
+          $existsWord = 'NOT EXISTS';
+          $operator = '=';
+        }
+        elsif ($operator =~ s/NOT\ //) { # notice that "NOT" is removed from $operator
+          $existsWord = 'NOT EXISTS';
+        }
+        
+        # construct the SQL used in the where clause to use an exists statement
+        push @sql, "$lp $existsWord (SELECT 1\nFROM $existsFrom\nWHERE ($existsWhere)\nAND ($leftSql $operator $rightSql))$rp";
+        push @binds, @existsFromBinds, @existsWhereBinds, @leftBinds, @rightBinds;
+      }
 
-      # glue expression
-      push @sql,   $lp.$leftSql.' '.$operator.' '.$rightSql.$rp;
-      push @binds, @leftBinds, @rightBinds;
+      # does left expression not use new cursor
+      else {
+        push @sql, "$lp $leftSql $operator $rightSql $rp";
+        push @binds, @leftBinds, @rightBinds;
+      }
       push @name, $lp.$leftName,  $operatorName, $rightName.$rp;
-      $deps{$_}=1  for @$leftDeps;
     }
-
 
     # namedFilter(args)
     elsif ($$exp[0]==2) {
@@ -1734,6 +1833,9 @@ sub _normalize {
 
   # look for new cursors and define parent child links if not already defined
   foreach my $join (keys %{ $oq->{'joins'} }) {
+    $$oq{driving_table} = $join if ! $$oq{joins}{$join}[0]
+      || (ref($$oq{joins}{$join}[0]) eq 'ARRAY' && scalar($$oq{joins}{$join}[0])==0);
+
     my $opts = $oq->{'joins'}->{$join}->[3];
     if (exists $opts->{new_cursor}) {
       if (ref($opts->{new_cursor}) ne 'HASH') {
@@ -1930,7 +2032,7 @@ sub check_join_counts {
     $where = 'WHERE '.join("\nAND ", @whereSql) if @whereSql;
 
     my $sql = "
-SELECT count(*)
+SELECT COUNT(1)
 FROM (
   SELECT $drivingTable.*
   FROM $fromSql

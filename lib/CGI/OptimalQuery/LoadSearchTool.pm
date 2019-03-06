@@ -1,6 +1,7 @@
 package CGI::OptimalQuery::LoadSearchTool;
 
 use strict;
+use CGI::OptimalQuery::SavedSearches();
 use JSON::XS();
 use CGI::OptimalQuery::Base();
 
@@ -38,30 +39,46 @@ sub load_default_saved_search {
 
 sub load_saved_search {
   my ($o, $id) = @_;
+  die "invalid ID" unless $id =~ /^\d+$/;
   local $$o{dbh}{LongReadLen};
   if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
     $$o{dbh}{LongReadLen} = 900000;
     my ($readLen) = $$o{dbh}->selectrow_array("SELECT dbms_lob.getlength(params) FROM oq_saved_search WHERE id = ?", undef, $id);
     $$o{dbh}{LongReadLen} = $readLen if $readLen > $$o{dbh}{LongReadLen};
   }
-  my ($params) = $$o{dbh}->selectrow_array(
-    "SELECT params FROM oq_saved_search WHERE id=?", undef, $id);
+  my ($params, $report_uri) = $$o{dbh}->selectrow_array(
+    "SELECT params, uri FROM oq_saved_search WHERE id=?", undef, $id);
   die "NOT_FOUND - saved search is not longer available\n" if $params eq '';
+  $params = eval '{'.$params.'}'; 
 
-  if ($params) {
-    $params = eval '{'.$params.'}'; 
+  # if no report config, redirect user to report
+  if (! $$o{schema}{joins}) {
+    my $url = $report_uri.'?OQss='.$id;
     if (ref($params) eq 'HASH') {
-      delete $$params{module};
       while (my ($k,$v) = each %$params) {
-        if(!defined($$o{q}->param($k))) {
-          $$o{q}->param( -name => $k, -values => $v ); 
+        next if $k eq 'module';
+        if (ref($v) eq 'ARRAY') {
+          $url .= '&'.$k.'='.$o->escape_uri($_) for @$v;
+        } else {
+          $url .= '&'.$k.'='.$o->escape_uri($v);
         }
       }
     }
-
-    # remember saved search ID
-    $$o{q}->param('OQss', $id);
+    my $buf = $$o{schema}{httpHeader}->( -status => 303, -uri => $url );
+    $$o{schema}{output_handler}->($buf);
   }
+
+  # report URI is correct, make sure we load saved search setting for this URL
+  else {
+    $$o{q}->param('OQss', $id);
+    if (ref($params) eq 'HASH') {
+      while (my ($k,$v) = each %$params) {
+        next if $k eq 'module';
+        $$o{q}->param( -name => $k, -values => $v ) unless defined($$o{q}->param($k));
+      }
+    }
+  }
+
   return undef;
 }
 
@@ -72,6 +89,7 @@ sub on_init {
 
   # request to delete a saved search
   if ($delete_id) {
+    $o->csrf_check();
     $$o{dbh}->do("DELETE FROM oq_saved_search WHERE user_id=? AND id=?", undef, $$o{schema}{savedSearchUserID}, $delete_id);
     $$o{output_handler}->($$o{httpHeader}->('text/html')."report deleted");
     return undef;
@@ -91,34 +109,8 @@ sub on_init {
 
 sub on_open {
   my ($o) = @_;
-  my $ar = $$o{dbh}->selectall_arrayref("
-    SELECT id, uri, user_title
-    FROM oq_saved_search
-    WHERE user_id = ?
-    AND upper(uri) = upper(?)
-    AND oq_title = ?
-    ORDER BY 2", undef, $$o{schema}{savedSearchUserID},
-      $$o{schema}{URI}, $$o{schema}{title});
-  my $buf;
-  # must include state params because server code may not run without them defined
-  my $args;
-  if ($$o{schema}{state_params}) {
-    my @args;
-    foreach my $p (@{ $$o{schema}{state_params} }) {
-      my $v = $$o{q}->param($p);
-      push @args, "$p=".$o->escape_uri($v) if $v;
-    }
-    $args = '&'.join('&', @args) if $#args > -1;
-  }
-  foreach my $x (@$ar) {
-    my ($id, $uri, $user_title) = @$x;
-    $buf .= "<tr><td><a href='$uri?OQLoadSavedSearch=$id".$args."'>".escapeHTML($user_title)."</a></td><td><button type=button class=OQDeleteSavedSearchBut data-id=$id>x</button></td></tr>";
-  }
-  if (! $buf) {
-    $buf = "<em>none</em>";
-  } else {
-    $buf = "<table>".$buf."</table>";
-  }
+  my $buf = $o->get_saved_searches_html( oq_title => $$o{schema}{title}, uri => $$o{schema}{URI}, hide_title => 1 );
+  $buf ||= '<em>none</em>';
   return $buf;
 }
 

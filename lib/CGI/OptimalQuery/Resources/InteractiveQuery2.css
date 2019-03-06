@@ -161,7 +161,7 @@ form.OQform {
   padding: 0;
   list-style-type: none; 
 }
-.OQToolsPanel li + li {
+.OQToolsPanel > ul > li + li {
   border-top: 1px solid #ccc;
 }
 
@@ -170,6 +170,12 @@ form.OQform {
   margin: 0;
   text-decoration: underline;
 }
+
+button.oqssdelete {
+  border: 0;
+  background: none;
+}
+
 #OQSaveReportEmailAlertOpts {
   border-color: transparent;
   border-radius: 6px;
@@ -474,6 +480,28 @@ table.OQdata > tbody tr.OQupdatedRow {
   background-color: #fdd;
 }
 
+table.OQdata > tbody > tr.OQcalcRow td {
+  font-size: .9em;
+  background-color: #eef;
+  border-bottom: 1px solid #aac;
+}
+.OQcalcRow td:first-child,
+.OQcalcRow dt {
+  text-align: center; 
+  color: blue;
+}
+.OQcalcRow dl {
+  margin: 0;
+}
+.OQcalcRow dt {
+  text-align: left;
+  display: inline-block;
+}
+.OQcalcRow dd {
+  text-align: right;
+  margin: 0;
+}
+
 .OQColumnCmdPanel {
   position: absolute;
   width: 140px;
@@ -703,17 +731,17 @@ label.ckbox:hover {
 .OQrecviewVal * {
   text-align: left;
 }
-.mode-recview .OQdata,
-.mode-recview .OQdata tbody,
-.mode-recview .OQdata tr {
+.oqmode-recview .OQdata,
+.oqmode-recview .OQdata tbody,
+.oqmode-recview .OQdata tr {
   display: block;
 }
-.mode-recview .OQdata td {
+.oqmode-recview .OQdata td {
   display: inline !important;
   border: 0 !important;
 }
-.mode-recview .OQdata .OQeditBut,
-.mode-recview .OQdata .OQselectBut {
+.oqmode-recview .OQdata .OQeditBut,
+.oqmode-recview .OQdata .OQselectBut {
   display: inline-block;
   border: 1px outset #ccc !important;
   background-position: 10px 10px;
@@ -762,21 +790,13 @@ label.ckbox:hover {
   background-color: #eee;
 }
 
-@media (max-width: 600px) {
-  .OQtitle, .OQsummary {
-    width: 100%;
-    text-align: left;
-    color: #eee;
-    font-size: 14px;
-  }
+@media (max-width: 650px) {
   .OQhead * {
-    float: none; 
+    width: auto;
     font-weight: normal;
     margin: 4px;
     padding: 0;
-  }
-  .OQsummary {
-    font-size: 10px;
+    vertical-align: middle;
   }
   .OQFilterPanel table,
   .OQFilterPanel tr {

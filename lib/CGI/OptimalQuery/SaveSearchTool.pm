@@ -27,6 +27,7 @@ sub on_init {
 
   # request to save a search?
   if ($$o{q}->param('OQsaveSearchTitle') ne '') {
+    $o->csrf_check();
 
     eval {
       # serialize params
@@ -85,7 +86,7 @@ sub on_init {
   
         # get starting alert_uids
         my @uids;
-        my $sth = $$o{oq}->prepare(
+        my $sth = $o->oq->prepare(
           show   => ['UID'],
           filter => scalar($$o{q}->param('filter')),
           forceFilter => $$o{schema}{forceFilter},
@@ -307,7 +308,7 @@ sub custom_output_handler {
   }
 
   # remember state param vals that were used so we can provide a link to view the live data
-  if ($$o{schema}{state_params}) {
+  if (! $$o{URI_utils} && $$o{schema}{state_params}) {
     my $args;
     foreach my $p (@{ $$o{schema}{state_params} }) {
       my $v = $$o{q}->param($p);
@@ -569,6 +570,7 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
       $opts{error_handler}->("err", "Error: $@\n\nsaved search:\n".Dumper($rec)."\n\nENV:\n".Dumper(\%ENV)."\n\n");
       if ($$rec{email_to}) {
         my %email;
+
         %email = (
           to => $$rec{email_to},
           from => $$rec{email_from} || $opts{email_from},
@@ -579,7 +581,7 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
 $$rec{err_msg}
 
 load report:
-$opts{base_url}/$$rec{URI}?OQLoadSavedSearch=".escape($$rec{ID}).$$rec{state_param_args}."
+$opts{base_url}/OptimalQueryUtils?OQLoadSavedSearch=".escape($$rec{ID})."
 
 Please contact your administrator if you are unable to fix the problem."
         );
@@ -679,7 +681,7 @@ $$rec{buf}
 <span class='ftv ib'>added: $total_new</span>
 <span class=ib>removed: $total_deleted</span>
 <p>
-<a href='".escapeHTML($opts{base_url}.'/'.$$rec{URI}.'?OQLoadSavedSearch='.escape($$rec{ID}).$$rec{state_param_args})."'>load report</a>
+<a href='".escapeHTML($opts{base_url}.'/OptimalQueryUtils?OQLoadSavedSearch='.escape($$rec{ID}))."'>load report</a>
 </div>
 </body>
 </html>";

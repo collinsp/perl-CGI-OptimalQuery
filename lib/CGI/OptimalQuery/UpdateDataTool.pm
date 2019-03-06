@@ -61,6 +61,7 @@ sub translate_db_error {
 
 sub act_save {
   my ($o) = @_;
+  $o->csrf_check();
   my %values;
   { my @fields = $$o{q}->param('fields');
     my @values = $$o{q}->param('values');

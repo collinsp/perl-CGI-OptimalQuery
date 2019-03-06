@@ -149,14 +149,15 @@ $script
   }
 
   $buf .= "
-<form class='OQform mode-$$o{mode}' name=OQform action='".escapeHTML($$o{schema}{URI_standalone}||$$o{schema}{URI})."' method=get>
+<form class='OQform oqmode-$$o{oqmode}' name=OQform action='".escapeHTML($$o{schema}{URI_standalone}||$$o{schema}{URI})."' method=get>
 <input type=hidden name=show value='".escapeHTML(join(',',@{$$o{show}}))."'>
 <input type=hidden name=filter value='".escapeHTML($$o{filter})."'>
 <input type=hidden name=hiddenFilter value='".escapeHTML($$o{hiddenFilter})."'>
 <input type=hidden name=queryDescr value='".escapeHTML($$o{queryDescr})."'>
 <input type=hidden name=sort value='".escapeHTML($$o{'sort'})."'>\n";
-  $buf .= "<input type=hidden name=mode value='".escapeHTML($$o{mode})."'>\n" if $$o{mode};
+  $buf .= "<input type=hidden name=oqmode value='".escapeHTML($$o{oqmode})."'>\n" if $$o{oqmode};
   $buf .= "<input type=hidden name=module value='".escapeHTML($$o{module})."'>\n" if $$o{module};
+  $buf .= $o->csrf_field();
 
   my @p = qw( OQss on_select on_update );
   push @p, @{ $$o{schema}{state_params} } if ref($$o{schema}{state_params}) eq 'ARRAY'; 
@@ -170,11 +171,19 @@ $script
 <div class=OQformTop>$opts{OQformTop}</div>
 
 <div class=OQhead>
-<div class=OQtitle>".escapeHTML($o->get_title)."</div>
-<div class=OQsummary>Result(s) (".$o->commify($o->get_lo_rec)." - "
-  .$o->commify($o->get_hi_rec).") of ".$o->commify($o->get_count)."</div>";
+<div class=OQtitle>".escapeHTML($o->get_title)."</div>";
 
-  if ($$o{mode} ne 'recview') {
+  my $cnt = $o->get_count();
+  if ($cnt==0) {
+    $buf .= "<div class=OQsummary>(0) results</div>";
+  }
+  elsif ($cnt == 1) {
+    $buf .= "<div class=OQsummary>($cnt) result</div>";
+  } else {
+    $buf .= "<div class=OQsummary>(".$o->commify($o->get_lo_rec)." - ".$o->commify($o->get_hi_rec).") of ".$o->commify($o->get_count)." results</div>";
+  }
+
+  if ($$o{oqmode} ne 'recview') {
     $buf .= "
 <div class=OQcmds>
 $newBut
@@ -183,6 +192,7 @@ $newBut
 <button type=button title='help' class=OQhelpBut>help</button>
 </div>";
   }
+
   $buf .= "
 </div>
 
@@ -213,7 +223,7 @@ $newBut
   $buf .= "</table>";
 
 
-  if ($$o{mode} eq 'recview') {
+  if ($$o{oqmode} eq 'recview') {
     $buf .= "
 <div class=OQRecViewCmds>
 $newBut
@@ -251,20 +261,42 @@ $buf = '';
 
   $buf .= "<table class=OQdata>";
 
-  if ($$o{mode} eq 'recview') {
+  my ($has_calc_row, $calc_row_html);
+
+  if ($$o{oqmode} eq 'recview') {
   } else {
     $buf .= "
 <thead title='click to hide, sort, filter, or add columns'>
 <tr>
 <td class=OQdataLHead></td>";
   foreach my $colAlias (@{ $o->get_usersel_cols }) {
+    $calc_row_html .= "<td>";
     my $colOpts = $$o{schema}{select}{$colAlias}[3];
     $buf .= "<td data-col='".escapeHTML($colAlias)."'";
     $buf .= " data-noselect" if $$colOpts{disable_select} || $opts{disable_select};
     $buf .= " data-nosort"   if $$colOpts{disable_sort}   || $opts{disable_sort};
     $buf .= " data-nofilter" if $$colOpts{disable_filter} || $opts{disable_filter};
     $buf .= " data-canUpdate" if $$o{oq}->canUpdate($colAlias);
-    $buf .= ">".escapeHTML($o->get_nice_name($colAlias))."</td>";
+    $buf .= ">".escapeHTML($o->get_nice_name($colAlias));
+
+    my $calc_field_val = $o->get_calc_fields()->{$colAlias};
+    $calc_field_val = 0 if $calc_field_val ne '' && $calc_field_val==0;  # format: 0.0000 => 0
+    if ($calc_field_val ne '') {
+      my $calc_title = $$colOpts{calc_title};
+      if ($$colOpts{calc_sql} =~ /\bdistinct\b/i) {
+        $calc_title = 'distinct';
+      } elsif ($$colOpts{calc_sql} =~ /\bmin\b/i) {
+        $calc_title = 'min';
+      } elsif ($$colOpts{calc_sql} =~ /\bmax\b/i) {
+        $calc_title = 'max';
+      } else {
+        $calc_title = 'total';
+      } 
+      $calc_row_html .= "<dl><dt>".escapeHTML($calc_title)."</dt><dd>".escapeHTML($calc_field_val)."</dd></dl>";
+      $has_calc_row=1;
+    }
+    $calc_row_html .= "</td>";
+    $buf .= "</td>";
   }
   $buf .= "
 <td class=OQdataRHead></td>
@@ -272,8 +304,8 @@ $buf = '';
 </thead>";
   }
 
-  $buf .= "
-<tbody>\n";
+  $buf .= "<tbody>\n";
+  $buf .= "<tr class=OQcalcRow title='shows calculated values for all data in the report'><td></td>".$calc_row_html."<td></td></tr>" if $has_calc_row;
 
   my $recs_in_buffer = 0;
   my $typeMap = $o->{oq}->get_col_types('select');
@@ -314,7 +346,7 @@ $buf = '';
     $buf .= " class=OQupdatedRow" if $updated_uid && $updated_uid eq $$r{U_ID};
     $buf .= ">";
 
-    if ($$o{mode} eq 'recview') {
+    if ($$o{oqmode} eq 'recview') {
       $buf .= "<td>";
       foreach my $col (@{ $o->get_usersel_cols }) {
         my $val = $o->get_html_val($col);

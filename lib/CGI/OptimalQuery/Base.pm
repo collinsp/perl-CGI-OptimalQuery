@@ -9,6 +9,7 @@ use Carp('confess');
 use POSIX();
 use DBIx::OptimalQuery;
 use JSON::XS;
+use Digest::SHA qw(sha256_base64 sha1_base64);
 
 # some tools that OQ auto activates
 use CGI::OptimalQuery::ExportDataTool();
@@ -51,12 +52,6 @@ sub new {
   $$o{output_handler} = $$o{schema}{output_handler};
   $$o{error_handler} = $$o{schema}{error_handler};
   $$o{httpHeader} = $$o{schema}{httpHeader};
-
-  # check for required attributes
-  confess "specified select is not a hash ref!"
-    unless ref $$o{schema}{select} eq "HASH";
-  confess "specified joins is not a hash ref!"
-    unless ref $$o{schema}{joins} eq "HASH";
   
   # set defaults
   $$o{schema}{debug} ||= 0;
@@ -74,7 +69,6 @@ sub new {
     # disabled so we can run from command line for testing where REQUEST_URI probably isn't defined
     # or die "could not find 'URI' in schema"; 
   }
-
   $$o{schema}{URI_standalone} ||= $$o{schema}{URI};
 
   # make sure developer is not using illegal state_params
@@ -86,6 +80,35 @@ sub new {
     }
   }
 
+  # install tools
+  CGI::OptimalQuery::ExportDataTool::activate($o);
+  CGI::OptimalQuery::LoadSearchTool::activate($o);
+  CGI::OptimalQuery::SaveSearchTool::activate($o);
+
+  # run on_init function for each enabled tool
+  foreach my $v (values %{ $$o{schema}{tools} }) {
+    $$v{on_init}->($o) if ref($$v{on_init}) eq 'CODE';
+  }
+
+  # initializes $$o{oq}
+  $o->oq() if $$o{schema}{select} && $$o{schema}{joins};
+  return $o;
+}
+
+
+
+sub oq {
+  my ($o) = @_;
+
+  return $$o{oq} if $$o{oq};
+
+  # check for required attributes
+  confess "specified select is not a hash ref!"
+    unless ref $$o{schema}{select} eq "HASH";
+  confess "specified joins is not a hash ref!"
+    unless ref $$o{schema}{joins} eq "HASH";
+
+  # is a query fully defined
   # construct optimal query object
   $$o{oq} = DBIx::OptimalQuery->new(
     'dbh'           => $$o{schema}{dbh},
@@ -148,18 +171,8 @@ sub new {
   # check schema validity
   $$o{oq}->check_join_counts() if $$o{schema}{check} && ! defined $$o{q}->param('module');
 
-  # install tools
-  CGI::OptimalQuery::ExportDataTool::activate($o);
-  CGI::OptimalQuery::LoadSearchTool::activate($o);
-  CGI::OptimalQuery::SaveSearchTool::activate($o);
-
-  # run on_init function for each enabled tool
-  foreach my $v (values %{ $$o{schema}{tools} }) {
-    $$v{on_init}->($o) if ref($$v{on_init}) eq 'CODE';
-  }
-
   my $schemaparams = $$o{schema}{params} || {};
-  foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort mode )) { 
+  foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort oqmode )) { 
     if (exists $$schemaparams{$k}) {
       $$o{$k} = $$schemaparams{$k};
     } elsif (defined $$o{q}->param($k)) {
@@ -169,8 +182,8 @@ sub new {
     }
   }
 
-  $$o{mode} ||= 'default';
-  $$o{mode} =~ s/\W//g;
+  $$o{oqmode} ||= 'default';
+  $$o{oqmode} =~ s/\W//g;
 
   $$o{schema}{results_per_page_picker_nums} ||= [25,50,100,500,1000,'All'];
   $$o{rows_page} ||= $$o{schema}{rows_page} || $$o{schema}{results_per_page_picker_nums}[0] || 10;
@@ -190,16 +203,14 @@ sub new {
     }
   }
 
-  return $o;
+  return $$o{oq};
 }
-
-sub oq  { $_[0]{oq}  }
 
 # ----------- UTILITY METHODS ------------------------------------------------
 
-sub escape_html      { escapeHTML($_[1]) }
-sub escape_uri       { CGI::escape($_[1])     }
-sub escape_js        {
+sub escape_html  {  escapeHTML($_[1]) }
+sub escape_uri   { CGI::escape($_[1]) }
+sub escape_js    {
   my $o = shift;
   $_ = shift;
   s/\\/\\x5C/g;  #escape \
@@ -244,23 +255,9 @@ sub sth {
   my ($o) = @_;
   return $$o{sth} if $$o{sth};
 
-  # show is made up of all the fields that should be selected
-  my @show; {
-    my %show;
-    foreach my $colalias (@{$$o{show}}) {
-      if (ref($$o{schema}{select}{$colalias}[3]{select}) eq 'ARRAY') {
-        $show{$_}=1 for @{ $$o{schema}{select}{$colalias}[3]{select} };
-      }
-      if ($$o{schema}{select}{$colalias}[1]) {
-        $show{$colalias}=1;
-      }
-    }
-    @show = sort keys %show;
-  }
-
   # create & execute SQL statement
   $$o{sth} = $$o{oq}->prepare(
-    show   => \@show,
+    show   => $$o{show},
     filter => $$o{filter},
     hiddenFilter => $$o{hiddenFilter},
     forceFilter => $$o{schema}{forceFilter},
@@ -295,6 +292,7 @@ sub sth {
   return $$o{sth};
 }
 sub get_count        { $_[0]->sth->count() }
+sub get_calc_fields  { $_[0]->sth->fetch_calc_fields() }
 sub get_rows_page    { $_[0]{rows_page} }
 sub get_current_page { $_[0]{page}      }
 sub get_lo_rec       { $_[0]->sth->get_lo_rec() }
@@ -364,8 +362,16 @@ sub get_val {
 sub get_html_val {
   my ($o, $colAlias) = @_;
   $o->fetch() unless $$o{rec};
-  my $formatter = $$o{schema}{select}{$colAlias}[3]{html_formatter} || \&default_html_formatter;
-  return $formatter->($$o{rec}{$colAlias}, $$o{rec}, $o, $colAlias);
+  my $rv;
+  my @args = ($$o{rec}{$colAlias}, $$o{rec}, $o, $colAlias);
+  if ($$o{schema}{select}{$colAlias}[3]{html_formatter}) {
+    $rv = $$o{schema}{select}{$colAlias}[3]{html_formatter}->(@args);
+  } elsif ($$o{schema}{select}{$colAlias}[3]{formatter}) {
+    $rv = escapeHTML($$o{schema}{select}{$colAlias}[3]{formatter}->(@args));
+  } else {
+    $rv = default_html_formatter(@args);
+  }
+  return $rv;
 }
 
 sub default_formatter {
@@ -394,7 +400,7 @@ sub recview_formatter {
 
   my @val;
   foreach my $colAlias2 (@{ $$o{schema}{select}{$colAlias}[3]{select} }) {
-    my $val2 = default_formatter($$rec{$colAlias2});
+    my $val2 = $o->get_val($colAlias2);
     if ($val2 ne '') {
       my $label = $$o{schema}{select}{$colAlias2}[2] || $colAlias2;
       push @val, "$label: $val2";
@@ -431,6 +437,177 @@ sub get_link {
   my $args = join('&', @args);
   $rv .= '?'.$args if $args;
   return $rv;
+}
+
+sub csrf_field {
+  my ($o, @do_not_tamper_params) = @_;
+  return "<input type=hidden name=_oqcsrf value='".$o->csrf_token(@_)."'>";
+}
+
+sub csrf_token {
+  my ($o, @do_not_tamper_params) = @_;
+  my @do_not_tamper_vals = map { join('|', $$o{q}->param($_)) } @do_not_tamper_params;
+  return $o->csrf_token_vals(@do_not_tamper_vals);
+}
+
+sub csrf_token_vals {
+  my ($o, @do_not_tamper_vals) = @_;
+
+  my $salt = sha1_base64(rand().$$.rand());
+  $salt =~ s/\W//g;
+  $salt = substr($salt, 0, 5);
+  die "invalid salt length\n" if length($salt) != 5;
+
+  my @tokens = ($$o{schema}{server_secret},$salt,$$o{schema}{savedSearchUserID},@do_not_tamper_vals);
+  my $cksum = sha256_base64(@tokens); $cksum =~ s/\W//g;
+  my $csrf = $cksum.$salt;
+
+#$$o{schema}{error_handler}->("generated csrf: $csrf   tokens: ".join(',',@tokens));
+  return $csrf;
+}
+
+sub csrf_check {
+  my ($o, @do_not_tamper_params) = @_;
+
+  my $csrf = $$o{q}->param('_oqcsrf') || $$o{q}->url_param('_oqcsrf') || $ENV{'HTTP_X_CSRFTOKEN'};
+  die "BAD_CSRF - invalid param\n" unless $csrf;
+
+  if ($$o{schema}{server_secret} eq '') {
+    $$o{schema}{error_handler}->("WARNING: optimal query schema is missing 'server_secret' which protects against CSRF attacks");
+  }
+
+  my $cksum0 = $csrf;
+  my ($cksum1, $salt, @tokens);
+  if ($cksum0 =~ s/(.{5})$//) {
+    my $salt = $1;
+    @tokens = ($$o{schema}{server_secret},$salt,$$o{schema}{savedSearchUserID},map { join('|', $$o{q}->param($_)) } @do_not_tamper_params);
+    $cksum1 = sha256_base64(@tokens); $cksum1 =~ s/\W//g;
+  }
+  if ($cksum0 ne $cksum1) {
+#$$o{schema}{error_handler}->("failed csrf_check; csrf: $csrf   cksum: $cksum0 != $cksum1   tokens: ".join(',', @tokens));
+    die "BAD_CSRF - Sorry this page has expired. Please reload and try again.\n";
+  }
+  return undef;
+}
+
+# returns list of available saved searches for this user
+sub get_saved_searches {
+  my ($o, %opts) = @_;
+  return () unless $$o{schema}{savedSearchUserID};
+
+  local $$o{dbh}{FetchHashKeyName} = 'NAME_uc';
+  my $oracleReadLen;
+
+  my @binds;
+  my $sql= "SELECT id,user_title,uri,is_default,oq_title";
+
+  # for old confgs that do not have a URI_utils config, select params field
+  # which will be used to extract state params
+  if (! $$o{schema}{URI_utils}) {
+    $sql .= ",params";
+  
+    # if oracle is being used, make sure params longreadlen is extended if neccessary
+    if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
+      ($oracleReadLen) = $$o{dbh}->selectrow_array("SELECT MAX(dbms_lob.getlength(params)) FROM oq_saved_search WHERE user_id=?", undef, $$o{schema}{savedSearchUserID});
+    }
+  }
+
+  $sql .= " FROM oq_saved_search WHERE user_id=?";
+  push @binds, $$o{schema}{savedSearchUserID};
+
+  if ($opts{uri}) {
+    $sql .= " AND uri=?";
+    push @binds, $opts{uri};
+  }
+  if ($opts{oq_title}) {
+    $sql .= " AND oq_title=?";
+    push @binds, $opts{oq_title};
+  }
+
+  $sql .= " ORDER BY oq_title, user_title";
+
+  local $$o{dbh}->{LongReadLen} = $oracleReadLen
+    if $oracleReadLen && $oracleReadLen > $$o{dbh}->{LongReadLen};
+  my $sth = $$o{dbh}->prepare($sql);
+  $sth->execute(@binds);
+
+  my $csrf_token = $o->csrf_token();
+
+  my @rv;
+  while (my $h = $sth->fetchrow_hashref()) {
+    my $url = $$o{schema}{URI_utils} || $$h{URI};
+    $$h{LOAD_URL}   = $url.'?OQLoadSavedSearch='.$$h{ID};
+    $$h{DELETE_URL} = $url.'?OQDeleteSavedSearch='.$$h{ID}.'&_oqcsrf='.$o->escape_uri($csrf_token);
+
+    # if URI_utils config is missing, we must use the report URI
+    # must extract state params since they may be neccessary to load report
+    # this is ugly but neccessary for old style configs!
+    if ($$h{PARAMS}) {
+      my $params = eval '{'.$$h{PARAMS}.'}';
+      my $args='';
+      foreach my $k (sort keys %$params) {
+        next if $k =~ /^(module|show|rows_page|page|hiddenFilter|filter|queryDescr|sort)$/;
+        my $v = $$params{$k};
+        if (ref($v) eq 'ARRAY') {
+          $args .= '&'.$k.'='.$o->escape_uri($_) for @$v;
+        } else {
+          $args .= '&'.$k.'='.$o->escape_uri($v);
+        }
+      }
+      $$h{LOAD_URL} .= $args; 
+      $$h{DELETE_URL} .= $args; 
+    }
+
+    push @rv, $h;
+  }
+
+  return @rv;
+}
+
+# returns saved searches for this user
+sub get_saved_searches_html {
+  my ($o, %opts) = @_;
+  my @saved_searches = $o->get_saved_searches(%opts);
+  my $last_oq_title = '';
+  my $buf = '';
+  foreach my $h (@saved_searches) {
+    if ($last_oq_title ne $$h{OQ_TITLE}) {
+      $buf .= '</table>' if $last_oq_title;
+      $last_oq_title = $$h{OQ_TITLE};
+      $buf .= "<h4>".$o->escape_html($$h{OQ_TITLE})."</h4>" unless $opts{hide_title};
+      $buf .= "<table>";
+    }
+    $buf .= "<tr><td><a href='".$o->escape_html($$h{LOAD_URL})."' title='load saved search' class=oqssload>".$o->escape_html($$h{USER_TITLE})."</a>";
+    $buf .= " <em title='you set your saved search as the default view for all users who load this report; if deleted the system default will be used'>default</em>" if $$h{IS_DEFAULT};
+    $buf .= "</td><td><button type=button title='delete saved search' class=oqssdelete data-url='".$o->escape_html($$h{DELETE_URL})."'>&#10005;</button></td></tr>";
+  }
+  $buf .= '</table>' if $last_oq_title;
+
+  if ($buf) {
+    $buf = '<div id=loadsavedsearches>'.$buf.'</div>
+<script>
+$("#loadsavedsearches").on("click", ".oqssdelete", function(e){
+  e.preventDefault();
+  var $t = $(this);
+  var $tr = $t.closest("tr");
+  $.ajax({
+    type: "post",
+    url: $t.attr("data-url"),
+    success: function() {
+      if ($tr.siblings().length==0) {
+        var $table = $tr.closest("table");
+        $table.prev("h4").add($table).remove();
+      }
+      else {
+        $tr.remove();
+      }
+    }
+  });
+  return false;
+});
+</script>';
+  }
+  return $buf;
 }
 
 1;

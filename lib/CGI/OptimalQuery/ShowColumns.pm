@@ -11,7 +11,7 @@ sub output {
   my $o = shift;
   my $buf = $$o{httpHeader}->('text/html').
 "<!DOCTYPE html>
-<html>
+<html lang='en'>
 <body>
 <div class=OQAddColumnsPanel>
 <h2>select fields to add ..</h2>";
@@ -25,13 +25,6 @@ sub output {
       unless $label eq '' || $$colOpts{disable_select} || $$colOpts{is_hidden};
   }
   $buf .= "
-<p>
-<label>display as:
-<select id=ShowColumnsDisplayAs>
-  <option value=default>table rows
-  <option value=recview".(($$o{q}->param('mode') eq 'recview')?" selected":"").">records
-</select>
-</label>
 <p>
 <button class=OQAddColumnsCancelBut>cancel</button>
 <button class=OQAddColumnsOKBut>ok</button>

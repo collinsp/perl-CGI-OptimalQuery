@@ -126,7 +126,7 @@ sub act_printform {
     $buf .= "
       <tr>
       <td><input name=fields readonly type=hidden value='".escapeHTML($fields[$i])."'>".escapeHTML($o->get_nice_name($fields[$i]))."</td>
-      <td><input title='enter update value; ommit value to clear (set to null) the current value' name=values type=text class=type-$type value='".escapeHTML($values[$i])."'></td>
+      <td><input title='enter update value; omit value to clear (set to null) the current value' name=values type=text class=type-$type value='".escapeHTML($values[$i])."'></td>
       <td><button type=button class=OQDelRow>&#10005;</button>
       </tr>";
   }

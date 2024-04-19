@@ -555,10 +555,11 @@ sub create_where {
   # define cursor where_sql, where_deps, where_name where_binds from parsed filter types
   my $c = $sth->{cursors}->[0];
   foreach my $filterType (qw( filter hiddenFilter forceFilter)) {
-    next if $$sth{$filterType} eq '';
-    my $filterArray = $$sth{oq}->parseFilter($$sth{$filterType});
+    my $filterStr = $$sth{$filterType};
+    next if $filterStr eq '';
+    my $filterArray = $$sth{oq}->parseFilter($filterStr);
+    die "invalid filter: $filterStr\n" if $#$filterArray==-1;
     my $filterSQL = $$sth{oq}->generateFilterSQL($filterArray);
-
     push @{ $$c{where_deps} }, @{ $$filterSQL{deps} };
     if ($$c{where_sql}) {
       $$c{where_sql} .= ' AND ('.$$filterSQL{sql}.')';
@@ -646,6 +647,20 @@ sub fetchrow_hashref {
       }
       $c->{sth}->finish();
     }
+
+    # for all multival columns that have a distinct option, ensure column values are distinct
+    foreach my $colAlias (@{ $$sth{oq}{_distinct_cols} }) {
+      next unless ref($$rec{$colAlias}) eq 'ARRAY';
+      my %seen; 
+      my @v;
+      foreach my $val (@{ $$rec{$colAlias} }) {
+        next if $seen{$val};
+        $seen{$val}=1;
+        push @v, $val;
+      }
+      $$rec{$colAlias} = \@v;
+    }
+
     return $rec;
   } else {
     return undef;
@@ -890,7 +905,7 @@ sub canUpdate {
   return !!$$oq{select}{$selectAlias}[3]{enable_update};
 }
 
-# returns ($key_field, $key_column, $table, $column) = $oq->getUpdateInfo($selectAlias)
+# returns ($key_field, $key_column, $table, $column, $opts) = $oq->getUpdateInfo($selectAlias)
 sub getUpdateInfo {
   my ($oq, $selectAlias) = @_;
   return undef unless $$oq{select}{$selectAlias}[3]{enable_update};
@@ -922,7 +937,7 @@ sub getUpdateInfo {
     die "missing enable_update.table for $selectAlias\n" unless $table;
   }
 
-  return ($key_field, $key_column, $table, $column);
+  return ($key_field, $key_column, $table, $column, $so);
 }
 
 
@@ -931,11 +946,10 @@ sub getUpdateInfo {
 #   newValues => { selectAlias1 => newVal, selectAlias2 => ['?', newVal], .. },
 #   oldValues => []   # OPTIONAL - if defined, will populate with log of previous data
 # );
-# $oq->update(%updateOpts);
+# $totalRows = $oq->update(%updateOpts);
 #
-# if oldValues is an array ref, it will be populated using format:
-#    [[ FieldHeader1, FieldHeader2, .. ], [Row1PrevVal1, Row1PrevVal2, ..], [Row2PrevVal1, Row2PrevVal2, ..] ]
-# if oldValues is a scalar ref, it will be populated using CSV format
+# if oldValues defined as an array ref, it will be populated using format:
+#    [[ ColAlias1, ColAlias2, .. ], [Row1PrevVal1, Row1PrevVal2, ..], [Row2PrevVal1, Row2PrevVal2, ..] ]
 sub update {
   my ($oq, %opts) = @_;
 
@@ -943,52 +957,91 @@ sub update {
 
   my %updates;
 
+  my %before_commit_field_callbacks;
+
   # show key fields that will be used to perform update
   { my %show;
     foreach my $selectAlias (sort keys %{ $opts{newValues} }) {
-      my ($key_field, $key_column, $table, $column) = $oq->getUpdateInfo($selectAlias);
-      $show{$key_field}=1;
-      $show{$selectAlias}=1 if ref($opts{oldValues});
-      die "cannot update key_field\n" if exists $opts{newValues}{$key_field};
-      $updates{$table} ||= { key_field => $key_field, key_column => $key_column, key_vals => {}, sql=>[], bind=>[] };
-      if (ref($opts{newValues}{$selectAlias}) eq 'ARRAY') {
-        my ($sql, @bind) = @{ $opts{newValues}{$selectAlias} };
-        push @{ $updates{$table}{sql}  }, $column.'='.$sql;
-        push @{ $updates{$table}{bind} }, @bind;
-      } else {
-        my $val = $opts{newValues}{$selectAlias};
-        undef $val if $val =~ /^\s*$/;
-        push @{ $updates{$table}{sql}  }, $column.'=?';
-        push @{ $updates{$table}{bind} }, $val;
+      my ($key_field, $key_column, $table, $enable_update_opts);
+
+      # if a custom getUpdateInfo function exists, run that instead of the default
+      # this is more advanced and allows user to dynamically configure key_field, key_column, table, column based on the update value
+      if (ref($$oq{select}{$selectAlias}[3]{enable_update}) eq 'HASH' && 
+          ref($$oq{select}{$selectAlias}[3]{enable_update}{getUpdateInfo}) eq 'CODE') {
+        $enable_update_opts = $$oq{select}{$selectAlias}[3]{enable_update};
+
+        my $newval = $opts{newValues}{$selectAlias};
+        $newval = $$enable_update_opts{filter}->($newval) if ref($$enable_update_opts{filter}) eq 'CODE';
+      
+        my $rv = $$enable_update_opts{getUpdateInfo}->($newval);
+        die "invalid return hash when calling $selectAlias getUpdateInfo function" unless ref($rv) eq 'HASH';
+        die "missing 'key_field' in return hash when calling $selectAlias getUpdateInfo function" if $$rv{key_field} eq '';
+
+        die "invalid 'key_field' (not in select schema) in return hash when calling $selectAlias getUpdateInfo function" unless $$oq{select}{$$rv{key_field}};
+        $key_field = $$rv{key_field};
+
+        die "missing 'key_column' in return hash when calling $selectAlias getUpdateInfo function" if $$rv{key_column} eq '';
+        $key_column = $$rv{key_column};
+
+        die "missing 'table' in return hash when calling $selectAlias getUpdateInfo function" if $$rv{table} eq '';
+        $table = $$rv{table};
+
+        die "missing 'sql' arrayref in return hash when calling $selectAlias getUpdateInfo function"  unless ref($$rv{sql})  eq 'ARRAY';
+        die "missing 'bind' arrayref in return hash when calling $selectAlias getUpdateInfo function" unless ref($$rv{bind}) eq 'ARRAY';
+
+        $updates{$table} ||= { key_field => $key_field, key_column => $key_column, key_vals => {}, sql=>[], bind=>[] };
+
+        push @{ $updates{$table}{sql}  }, @{ $$rv{sql} };
+        push @{ $updates{$table}{bind} }, @{ $$rv{bind} };
       }
+
+      else {
+        my $column;
+        ($key_field, $key_column, $table, $column, $enable_update_opts) = $oq->getUpdateInfo($selectAlias);
+
+        # filter field value if exists
+        $opts{newValues}{$selectAlias} = $$enable_update_opts{filter}->($opts{newValues}{$selectAlias})
+          if ref($$enable_update_opts{filter}) eq 'CODE';
+
+        $updates{$table} ||= { key_field => $key_field, key_column => $key_column, key_vals => {}, sql=>[], bind=>[] };
+        die "cannot update key_field\n" if exists $opts{newValues}{$key_field};
+
+        if (ref($opts{newValues}{$selectAlias}) eq 'ARRAY') {
+          my ($sql, @bind) = @{ $opts{newValues}{$selectAlias} };
+          push @{ $updates{$table}{sql}  }, $column.'='.$sql;
+          push @{ $updates{$table}{bind} }, @bind;
+        } else {
+          my $val = $opts{newValues}{$selectAlias};
+          undef $val if $val =~ /^\s*$/;
+          push @{ $updates{$table}{sql}  }, $column.'=?';
+          push @{ $updates{$table}{bind} }, $val;
+        }
+      }
+
+      my $cb = $$enable_update_opts{before_commit};
+      $before_commit_field_callbacks{$cb}=$cb if $cb;
+      $show{$key_field}=1;
+      $show{$selectAlias}=1 if ref($opts{oldValues}) eq 'ARRAY';
     }
     my @show = sort keys %show;
     die "could not find key fields\n" if scalar(@show)==0;
     $opts{show} = \@show;
   }
 
-  # select all rows with their key info that need updating
+  my $sth = $oq->prepare(%opts);
   my @oldValuesHeader;
 
-  my $sth = $oq->prepare(%opts);
-
-  my $totalRows=0;
+  $opts{totalRows} = 0;
   while (my $h = $sth->fetchrow_hashref()) {
-    ++$totalRows;
+    ++$opts{totalRows};
 
-    # show we populate the oldValues array or scalar ref?
-    if (exists $opts{oldValues}) {
-      # add field header if we haven't already done so
+    if (ref($opts{oldValues}) eq 'ARRAY') {
+      # include header if not already defined
       if ($#oldValuesHeader==-1) {
-        @oldValuesHeader = sort keys %$h;
-        if (ref($opts{oldValues}) eq 'ARRAY') {
-          push @{ $opts{oldValues} }, \@oldValuesHeader;
-        } else {
-          die "oldValues should be an array ref or scalar ref\n";
-        }
+        @oldValuesHeader = ('U_ID', sort keys %{ $opts{newValues} });
+        push @{ $opts{oldValues} }, \@oldValuesHeader;
       }
 
-      # include data row
       my @oldVals = @$h{ @oldValuesHeader };
       push @{ $opts{oldValues} }, \@oldVals if $opts{oldValues};
     }
@@ -1007,12 +1060,16 @@ sub update {
     if (scalar(@key_vals) > 0) {
       my $sth = $$oq{dbh}->prepare($sql);
       foreach my $key_val (@key_vals) {
-        $sth->execute( @{ $updates{$table}{bind} }, $key_val);
+        my @binds = (@{ $updates{$table}{bind} }, $key_val);
+        my $rv = $sth->execute(@binds);
+        die "could not execute $sql for binds: ".join(',', @binds)."\n" if $rv==0;
       }
     }
   }
 
-  return $totalRows;
+  $_->() for values %before_commit_field_callbacks;
+
+  return $opts{totalRows};
 }
 
 # returns [
@@ -1060,7 +1117,7 @@ sub parseFilter {
         }
         elsif ($f =~ /\G\'([^\']*)\'\s*\,?\s*/gc ||
                $f =~ /\G\"([^\"]*)\"\s*\,?\s*/gc ||
-               $f =~ /\G([^\)\,]*)\s*\,?\s*/gc) {
+               $f =~ /\G([^\)\,\s]*)\s*\,?\s*/gc) {
           push @args, $1;
         } else {
           $error = "could not parse named filter arguments";
@@ -1085,17 +1142,20 @@ sub parseFilter {
       my $rexp;
       my $typeNum = 1;
 
+      # if expression has error we will just ignore it
+      # this is helpful to allow the report to load especially if priv chage and a field is no longer avail
+      my $expression_error;
+
       # grab select alias used on the left side of the expression
       if ($f=~/\G\[([^\]]+)\]\s*/gc) { $lexp = $1; }
       elsif ($f=~/\G(\w+)\s*/gc) { $lexp = $1; }
       else {
-        $error = "missing left expression";
+        $expression_error = "missing left expression";
       }
 
       # make sure the select alias is valid
       if (! $$oq{select}{$lexp}) {
-        $error = "invalid field $lexp";
-        next;
+        $expression_error = "invalid field $lexp";
       }
 
       # parse the operator
@@ -1104,8 +1164,7 @@ sub parseFilter {
         $op = lc($1);
       }
       else {
-        $error = "invalid operator";
-        next;
+        $expression_error = "invalid operator";
       }
 
       # if rexp is a select alias
@@ -1132,8 +1191,7 @@ sub parseFilter {
       }
 
       else {
-        $error = "missing right expression";
-        next;
+        $expression_error = "missing right expression";
       }
 
       # parse closing parenthesis
@@ -1144,11 +1202,12 @@ sub parseFilter {
         }
       }
 
-      push @rv, [$typeNum, $numLeftP, $lexp, $op, $rexp, $numRightP];
+      push @rv, [$typeNum, $numLeftP, $lexp, $op, $rexp, $numRightP] unless $expression_error;
     }
 
     # parse logic operator
     if ($f =~ /(AND|OR)\s*/gci) {
+      pop @rv if $rv[$#rv] =~ /^(AND|OR)$/; # do not allow double logic operators (can happen if expression was not added due to error)
       push @rv, uc($1);
     }
     else { 
@@ -1161,6 +1220,9 @@ sub parseFilter {
     $error .= " at ".substr($f, 0, $p).'<*>'.substr($f, $p);
     die $error."\n";
   }
+
+  # make sure we do not have a trailing logic operator
+  pop @rv if $rv[$#rv] =~ /^(AND|OR)$/;
 
   return \@rv;
 }
@@ -1739,7 +1801,7 @@ sub parseSort {
         ($sortDeps, $sortSql, $sortLabel) = @{ $$s{sql_generator}->(@args) };
         ($sortSql, @sortBinds) = @$sortSql if ref($sortSql) eq 'ARRAY';
       } else {
-        die "invalid named_filter: $namedSortAlias\n";
+        die "invalid named_sort: $namedSortAlias\n";
       }
 
       push @sql,   $sortSql;
@@ -1751,7 +1813,7 @@ sub parseSort {
     # parse named sort
     elsif ($str =~ /\G\[?(\w+)\]?\s*/gc) {
       my $colAlias = $1;
-      die "missing sort col: $colAlias\n" unless $$oq{select}{$colAlias};
+      next if ! $$oq{select}{$colAlias};
       my @sortBinds;
       my ($sortDeps, $sortSql, $sortLabel, $opts) = @{ $$oq{select}{$colAlias} };
       $sortSql = $$opts{sort_sql} if $$opts{sort_sql};
@@ -1817,12 +1879,14 @@ sub _normalize {
   }
 
   # make sure the following select options, if they exist are array references
+  $$oq{_distinct_cols} = [];
   foreach my $col (keys %{ $oq->{'select'} }) {
     my $opts = $oq->{'select'}->{$col}->[3];
     foreach my $opt (qw( select_sql sort_sql filter_sql )) {
       $opts->{$opt} = [$opts->{$opt}] 
         if exists $opts->{$opt} && ref($opts->{$opt}) ne 'ARRAY';
     }
+    push @{ $$oq{_distinct_cols} }, $col if $$opts{distinct};
 
     # make sure defined deps exist
     foreach my $dep (@{ $$oq{'select'}{$col}[0] }) {

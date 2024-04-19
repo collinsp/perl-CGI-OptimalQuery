@@ -9,7 +9,7 @@ use CGI::OptimalQuery::SavedSearches();
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '0.34';
+    $VERSION     = '0.35';
     @ISA         = qw(Exporter);
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
@@ -281,8 +281,6 @@ hides the select field and data from being viewed by the user. Data for this sel
 
 =item B<< always_select => 1 >>
 
-Indicate if batch updates are enabled. If options: table, key_select, key_column are not defined, OQ will look for their values in the dependent join option or OQ will try to automatically discover the configuration.
-
 =item B<< select_sql => (STRING | ARRAYREF) >>
 
 =item B<< filter_sql => (STRING | ARRAYREF) >>
@@ -290,6 +288,10 @@ Indicate if batch updates are enabled. If options: table, key_select, key_column
 =item B<< sort_sql => (STRING | ARRAYREF) >>
 
 SQL to use instead of the default SQL for the select for the context described.
+
+=item B<< distinct => 1>>
+
+If this field is a one-to-many value (field depends on a join with a new_cursor configuration), optionally filter out redundant values with the distinct option.
 
 =item B<< date_format => (STRING) >>
 
@@ -302,9 +304,11 @@ Note: Oracle's date component also has a built-in time component. If the data is
 
 =item B<< enable_update => 1 >>
 
-=item B<< enable_update => { column => 'fname' } >>
+=item B<< enable_update => { column => 'fname', filter => sub { my ($val)=@_; $val=uc($val); return $val; }, before_commit => sub{} } >>
 
 =item B<< enable_update => { table => 'user', key_field => 'U_ID', key_column => 'id', column => 'fname' } >>
+
+=item B<< enable_update => { getUpdateInfo => sub { return { table => 'user', key_field => 'U_ID', key_column => 'id', sql => ["fname=?"], bind => ['Frank'] } } } >>
 
 Indicates if batch updates should be allowed for this field. If the table, key_field, or key_column are not defined, OQ will look for these values in the enable_update join options. If the value still does not exist, OQ will attempt to extract the info from the data model automatically.
 
@@ -354,6 +358,7 @@ tells OptimalQuery to always include join in query. Useful when the join itself 
 =item B<< new_cursor_order_by => "some_field.id" >>
 
 tells OptimalQuery to open a new cursor for this join. This can be used to select and filter multi-value fields.
+See select option "distinct" to filter out redundant values.
 Optionally, an order_by param can be specified to sort the results returned by the cursor as such:
 
 =item B<< enable_update => { table => 'user', key_field => 'U_ID', key_column => 'id' } >>
@@ -448,7 +453,7 @@ override default output handler (print to STDOUT), by defining this callback.
 
 =item B<< after_update_handler => sub { } >>
 
-if data updates are enabled, provide an optional callback react changes made by user
+if data updates are enabled, provide an optional callback to react to changes made by user
 
   $$schema{after_update_handler} = sub {
     my %opts = @_;

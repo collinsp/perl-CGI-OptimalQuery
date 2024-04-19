@@ -9,7 +9,7 @@ sub escapeHTML { CGI::OptimalQuery::Base::escapeHTML(@_) }
 
 sub load_default_saved_search {
   my ($o) = @_;
-  return undef unless exists $$o{canSaveDefaultSearches};
+  return undef unless exists $$o{schema}{canSaveDefaultSearches};
   local $$o{dbh}{LongReadLen};
   if ($$o{dbh}{Driver}{Name} eq 'Oracle') {
     $$o{dbh}{LongReadLen} = 900000;
@@ -27,7 +27,7 @@ sub load_default_saved_search {
     if (ref($params) eq 'HASH') {
       delete $$params{module};
       while (my ($k,$v) = each %$params) {
-        if(!defined($$o{q}->param($k))) {
+        if($k ne 'filter' && !defined($$o{q}->param($k))) {
           $$o{q}->param( -name => $k, -values => $v ); 
         }
       }
@@ -50,6 +50,8 @@ sub load_saved_search {
     "SELECT params, uri FROM oq_saved_search WHERE id=?", undef, $id);
   die "NOT_FOUND - saved search is not longer available\n" if $params eq '';
   $params = eval '{'.$params.'}'; 
+
+  delete $$params{rows_page} if $$params{rows_page} eq 'All'; # don't allow unlimited rows - this can cause a problem if rows were small when the report was saved, but then ballons to millions of records
 
   # if no report config, redirect user to report
   if (! $$o{schema}{joins}) {

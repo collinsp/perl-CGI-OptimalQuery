@@ -9,10 +9,10 @@ sub on_open {
 <label class=ckbox><input type=checkbox class=OQExportAllResultsInd checked> all pages</label>
 <p>
 <strong>download as..</strong><br>
-<a class=OQDownloadCSV href=#>CSV (Excel)</a>,
-<a class=OQDownloadHTML href=#>HTML</a>,
-<a class=OQDownloadJSON href=#>JSON</a>,
-<a class=OQDownloadXML href=#>XML</a>";
+<button type=button class=OQDownloadCSV title='Download as a Comma Separated Values file compatible with Microsoft Excel'>CSV</button>
+<button type=button class=OQDownloadHTML title='Download as an HTML file which is viewable in any web browser'>HTML</button>
+<button type=button class=OQDownloadJSON title='Download as an JSON file - a common data format other computer systems can process'>JSON</button>
+<button type=button class=OQDownloadXML title='Download as an XML file - a common data format other computer systems can process'>XML</button>";
 }
 
 sub activate {

@@ -293,7 +293,7 @@ sub output {
   if (! exists $opts{htmlHeader}) {
     my $title = $opts{title} || 'OptimalQuery Report';
     $opts{htmlHeader} = "<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01//EN' 'http://www.w3.org/TR/html4/strict.dtd'>
-<html>
+<html lang='en'>
 <head>
 <title>".$o->escape_html($title)."</title>
 </head>

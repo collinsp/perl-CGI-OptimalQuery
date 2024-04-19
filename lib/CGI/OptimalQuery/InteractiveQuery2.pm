@@ -54,11 +54,8 @@ sub output {
   elsif (ref($opts{buildNewLink}) eq 'CODE') {
     my $link = $opts{buildNewLink}->($o, \%opts);
     if ($link ne '') {
-      $newBut = "<button type=button title=new class=OQnewBut";
-      if ($opts{usePopups}) {
-        my $target = uc($link); $target =~ s/\W//g;
-        $newBut .= " data-target='$target'";
-      }
+      $newBut = "<button type=button class=OQnewBut";
+      $newBut .= " data-target=_blank" if $opts{usePopups};
       $newBut .= " data-href='".escapeHTML($link)."'>new</button>";
     }
   }
@@ -66,16 +63,13 @@ sub output {
   elsif ($opts{editLink} ne '') {
     my $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."on_update=OQrefresh&act=new";
     if ($link ne '') {
-      $newBut = "<button type=button title=new class=OQnewBut";
-      if ($opts{usePopups}) {
-        my $target = uc($opts{editLink}); $target =~ s/\W//g;
-        $newBut .= " data-target='$target'";
-      }
+      $newBut = "<button type=button class=OQnewBut";
+      $newBut .= " data-target=_blank" if $opts{usePopups};
       $newBut .= " data-href='".escapeHTML($link)."'>new</button>";
     }
   }
 
-  my $ver = "ver=$CGI::OptimalQuery::VERSION";
+  my $ver = "ver=$CGI::OptimalQuery::VERSION-1";   # note minor changes so added "-1" because CGI::OptimalQuery::VERSION did not change
   my $buf;
   my $script;
   $script .= "window.OQWindowHeight=$opts{WindowHeight};\n" if $opts{WindowHeight};
@@ -118,6 +112,9 @@ sub output {
 
   $buf = $opts{httpHeader}.$opts{htmlHeader};
   $buf .= "<script src=$$o{schema}{resourceURI}/jquery.js?$ver></script>" unless $opts{jquery_already_sent};
+
+  $script .= $opts{OQscript};
+
   $buf .= "
 <script src=$$o{schema}{resourceURI}/InteractiveQuery2.js?$ver></script>
 <script>
@@ -132,20 +129,13 @@ $script
   # ouput tools panel
   my @tools = sort keys %{$$o{schema}{tools}};
   if ($#tools > -1) {
-    $buf .= "<div class=OQToolsPanel-pos-div><div class=OQToolsPanel-align-div><div class=OQToolsPanel><ul>";
-    my $opened_tool_key = $$o{q}->param('tool');
+    $buf .= "<div class=OQToolsPanel-pos-div><div class=OQToolsPanel-align-div><div class=OQToolsPanel>";
     foreach my $key (sort keys %{$$o{schema}{tools}}) {
       my $tool = $$o{schema}{tools}{$key};
-
-      my $openedClass = '';
       my $toolContent = '';
-      if ($opened_tool_key eq $key) {
-        $openedClass = ' opened';
-        $toolContent = "<div class=OQToolContent>".$$tool{handler}->($o)."</div>";
-      }
-      $buf .= "<li data-toolkey='$key' class='OQToolExpander $openedClass'><h3>".escapeHTML($$tool{title})."</h3>$toolContent</li>";
+      $buf .= "<details data-toolkey=$key class=OQToolExpander><summary>".escapeHTML($$tool{title})."</summary>$toolContent</details>";
     }
-    $buf .= "</ul><button class=OQToolsCancelBut type=button>&#10005;</button></div></div></div>";
+    $buf .= "<button class=OQToolsCancelBut type=button>&#10005;</button></div></div></div>";
   }
 
   $buf .= "
@@ -183,58 +173,47 @@ $script
     $buf .= "<div class=OQsummary>(".$o->commify($o->get_lo_rec)." - ".$o->commify($o->get_hi_rec).") of ".$o->commify($o->get_count)." results</div>";
   }
 
-  if ($$o{oqmode} ne 'recview') {
-    $buf .= "
-<div class=OQcmds>
+  $buf .= "
+<div class=OQcmds>";
+  $buf .= "
+<button type=button class=OQFilterBut>filter</button>
+<button type=button class=OQAddColumnsBut>add column</button>" if $$o{oqmode} eq 'recview';
+  $buf .= "
 $newBut
-<button type=button title='refresh data' class=OQrefreshBut>refresh</button>
-<button type=button title='tools' class=OQToolsBut>tools</button>
-<button type=button title='help' class=OQhelpBut>help</button>
+<button type=button class=OQrefreshBut>refresh</button>
+<button type=button class=OQToolsBut>tools</button>
+<button aria-label='toggle table/record report view' class=OQToggleTableViewBut>view</button>
 </div>";
-  }
 
   $buf .= "
-</div>
+</div>";
 
-<table class=OQinfo>";
-  $buf .= "<tr class=OQQueryDescr><td class=OQlabel>Query:</td><td>".escapeHTML($$o{queryDescr})."</td></tr>" if $$o{queryDescr};
+  my $trs;
+  $trs .= "<tr class=OQQueryDescr><td class=OQlabel>Query:</td><td>".escapeHTML($$o{queryDescr})."</td></tr>" if $$o{queryDescr};
 
   my $filter = $o->get_filter();
   if ($filter) {
-    $buf .= "<tr class=OQFilterDescr title='click to edit filter'";
-    $buf .= " data-nofilter" if $opts{disable_filter};
-    $buf .= "><td class=OQlabel>Filter:</td><td>".escapeHTML($filter)."</td></tr>";
+    $trs .= "<tr";
+    $trs .= " data-nofilter" if $opts{disable_filter};
+    $trs .= "><td class=OQlabel>Filter:</td><td><a href=# class=OQFilterDescr title='click to edit filter'>".escapeHTML($filter)."</a></td></tr>";
   }
 
   my @sort = $o->sth->sort_descr;
   if ($#sort > -1) {
-    $buf .= "<tr class=OQSortDescr><td class=OQlabel>Sort:</td><td>";
+    $trs .= "<tr class=OQSortDescr><td class=OQlabel>Sort:</td><td>";
     my $comma = '';
     foreach my $c (@sort) {
-      $buf .= $comma;
+      $trs .= $comma;
       $comma = ', ';
-      $buf .= "<a title=remove class=OQRemoveSortBut>" unless $opts{disable_sort};
-      $buf .= escapeHTML($c);
-      $buf .= "</a>" unless $opts{disable_sort};
+      $trs .= "<a title=remove tabindex=0 href=# class=OQRemoveSortBut title='remove sort field'>" unless $opts{disable_sort};
+      $trs .= escapeHTML($c);
+      $trs .= "</a>" unless $opts{disable_sort};
     }
-    $buf .= "</tr>";
+    $trs .= "</tr>";
   }
-
-  $buf .= "</table>";
-
-
-  if ($$o{oqmode} eq 'recview') {
-    $buf .= "
-<div class=OQRecViewCmds>
-$newBut
-<button type=button class=OQrefreshBut>refresh</button>
-<button type=button class=OQAddColumnsBut>columns</button>
-<button type=button class=OQFilterBut>filter</button>
-<button type=button class=OQhelpBut>help</button>
-<button type=button class=OQToolsBut>tools</button>
-</div>";
-  }
-
+  $buf .= "<table summary='report info' class=OQinfo";
+  $buf .= " style='display:none;'" if ! $trs;
+  $buf .= ">$trs</table>";
 
   # print update message
   my $updated_uid = $o->{q}->param('updated_uid');
@@ -255,50 +234,52 @@ $newBut
     }
   }
 
-
-$$o{output_handler}->($buf);
-$buf = '';
-
   $buf .= "<table class=OQdata>";
 
   my ($has_calc_row, $calc_row_html);
 
-  if ($$o{oqmode} eq 'recview') {
-  } else {
+  if ($$o{oqmode} ne 'recview') {
     $buf .= "
 <thead title='click to hide, sort, filter, or add columns'>
 <tr>
-<td class=OQdataLHead></td>";
-  foreach my $colAlias (@{ $o->get_usersel_cols }) {
-    $calc_row_html .= "<td>";
-    my $colOpts = $$o{schema}{select}{$colAlias}[3];
-    $buf .= "<td data-col='".escapeHTML($colAlias)."'";
-    $buf .= " data-noselect" if $$colOpts{disable_select} || $opts{disable_select};
-    $buf .= " data-nosort"   if $$colOpts{disable_sort}   || $opts{disable_sort};
-    $buf .= " data-nofilter" if $$colOpts{disable_filter} || $opts{disable_filter};
-    $buf .= " data-canUpdate" if $$o{oq}->canUpdate($colAlias);
-    $buf .= ">".escapeHTML($o->get_nice_name($colAlias));
+<td class=OQdataLHead";
 
-    my $calc_field_val = $o->get_calc_fields()->{$colAlias};
-    $calc_field_val = 0 if $calc_field_val ne '' && $calc_field_val==0;  # format: 0.0000 => 0
-    if ($calc_field_val ne '') {
-      my $calc_title = $$colOpts{calc_title};
-      if ($$colOpts{calc_sql} =~ /\bdistinct\b/i) {
-        $calc_title = 'distinct';
-      } elsif ($$colOpts{calc_sql} =~ /\bmin\b/i) {
-        $calc_title = 'min';
-      } elsif ($$colOpts{calc_sql} =~ /\bmax\b/i) {
-        $calc_title = 'max';
-      } else {
-        $calc_title = 'total';
-      } 
-      $calc_row_html .= "<dl><dt>".escapeHTML($calc_title)."</dt><dd>".escapeHTML($calc_field_val)."</dd></dl>";
-      $has_calc_row=1;
+    if (! $$o{schema}{select}{U_ID} || (exists $opts{editLink} && ! $opts{editLink})) {
+      $buf .= "></td>"
+    } else {
+      $buf .= " data-col=U_ID><a href=#>SYS ID</a></td>"
     }
-    $calc_row_html .= "</td>";
-    $buf .= "</td>";
-  }
-  $buf .= "
+  
+    foreach my $colAlias (@{ $o->get_usersel_cols }) {
+      $calc_row_html .= "<td>";
+      my $colOpts = $$o{schema}{select}{$colAlias}[3];
+      $buf .= "<td data-col='".escapeHTML($colAlias)."'";
+      $buf .= " data-noselect" if $$colOpts{disable_select} || $opts{disable_select};
+      $buf .= " data-nosort"   if $$colOpts{disable_sort}   || $opts{disable_sort};
+      $buf .= " data-nofilter" if $$colOpts{disable_filter} || $opts{disable_filter};
+      $buf .= " data-canUpdate" if $$o{oq}->canUpdate($colAlias);
+      $buf .= "><a href=#>".escapeHTML($o->get_nice_name($colAlias))."</a>";
+  
+      my $calc_field_val = $o->get_calc_fields()->{$colAlias};
+      $calc_field_val = 0 if $calc_field_val ne '' && $calc_field_val==0;  # format: 0.0000 => 0
+      if ($calc_field_val ne '') {
+        my $calc_title = $$colOpts{calc_title};
+        if ($$colOpts{calc_sql} =~ /\bdistinct\b/i) {
+          $calc_title = 'distinct';
+        } elsif ($$colOpts{calc_sql} =~ /\bmin\b/i) {
+          $calc_title = 'min';
+        } elsif ($$colOpts{calc_sql} =~ /\bmax\b/i) {
+          $calc_title = 'max';
+        } else {
+          $calc_title = 'total';
+        } 
+        $calc_row_html .= "<dl><dt>".escapeHTML($calc_title)."</dt><dd>".escapeHTML($calc_field_val)."</dd></dl>";
+        $has_calc_row=1;
+      }
+      $calc_row_html .= "</td>";
+      $buf .= "</td>";
+    }
+    $buf .= "
 <td class=OQdataRHead></td>
 </tr>
 </thead>";
@@ -311,16 +292,28 @@ $buf = '';
   my $typeMap = $o->{oq}->get_col_types('select');
   while (my $r = $o->fetch()) {
     my $leftBut;
+
+    my $leftButLabel;
+    if ($$r{U_ID} eq '') {
+      $leftButLabel = $opts{editButtonLabel};
+    } elsif ($$o{oqmode} eq 'recview') {
+      $leftButLabel = 'open: '.$$r{U_ID}; 
+    } else {
+      $leftButLabel = $$r{U_ID}; 
+    }
+
     if (ref($opts{OQdataLCol}) eq 'CODE') {
       $leftBut = $opts{OQdataLCol}->($r);
     } elsif (ref($opts{buildEditLink}) eq 'CODE') {
       my $link = $opts{buildEditLink}->($o, $r, \%opts);
       if ($link ne '') {
-        $leftBut = "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".$opts{editButtonLabel}."</a>";
+        $leftBut = "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".escapeHTML($leftButLabel)."</a>";
       }
+    } elsif ($$r{OQ_EDIT_LINK}) {
+      $leftBut = "<a href='".escapeHTML($$r{OQ_EDIT_LINK})."' title='open record' class=OQeditBut>".escapeHTML($leftButLabel)."</a>";
     } elsif ($opts{editLink} ne '' && $$r{U_ID} ne '') {
       my $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."on_update=OQrefresh&act=load&id=$$r{U_ID}";
-      $leftBut = "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".$opts{editButtonLabel}."</a>";
+      $leftBut = "<a href='".escapeHTML($link)."' title='open record' class=OQeditBut>".escapeHTML($leftButLabel)."</a>";
     }
 
     my $rightBut;
@@ -392,11 +385,11 @@ $buf = '';
     $buf .= " disabled" if $$o{page}==1;
     $buf .= ">&lt;</button>";
   }
-  $buf .= " <select name=rows_page>";
+  $buf .= " <label>view <select name=rows_page>";
   foreach my $p (@{ $$o{schema}{results_per_page_picker_nums} }) {
-    $buf .= "<option value=$p".(($p eq $$o{rows_page})?" selected":"").">view $p results per page";
+    $buf .= "<option value=$p".(($p eq $$o{rows_page})?" selected":"").">$p";
   }
-  $buf .= "</select>";
+  $buf .= "</select> results per page</label>";
   if ($numpages != 1) {
     $buf .= " <label>Page <input type=number min=1 max=$numpages step=1 name=page value='"
 .escapeHTML($$o{page})."'> of $numpages</label> <button type=button title='next page' class=OQNextBut>&gt;</button>"
@@ -412,7 +405,7 @@ $buf = '';
   <button type=button class=OQSortBut title='sort column A-Z'>sort</button>
   <button type=button class=OQReverseSortBut title='reverse sort column Z-A'>sort reverse</button>
   <button type=button class=OQFilterBut title='filter column'>filter</button>
-  <button type=button class=OQAddColumnsBut title='add columns'>add columns</button>
+  <button type=button class=OQAddColumnsBut title='add columns'>add column</button>
   <button type=button class=OQCloseBut title='hide column'>hide column</button>
 </div>
 </form>";

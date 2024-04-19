@@ -36,7 +36,7 @@ sub on_init {
         foreach my $p (qw( show filter sort rows_page queryDescr hiddenFilter )) {
           $data{$p} = $$o{q}->param($p);
         }
-        delete $data{rows_page} unless $data{rows_page} eq 'All' || $data{rows_page} > 25;
+        delete $data{rows_page} if $data{rows_page} eq 'All'; # don't allow unlimited rows - this can cause a problem if rows were small when the report was saved, but then ballons to millions of records
         if (ref($$o{schema}{state_params}) eq 'ARRAY') {
           foreach my $p (@{ $$o{schema}{state_params} }) {
             my @v = $$o{q}->param($p);
@@ -96,12 +96,17 @@ sub on_init {
 
         $sth->execute();
 
-        while (my $h = $sth->fetchrow_hashref()) {
-          push @uids, $$h{U_ID};
-        }
-        die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if scalar(@uids) >= $$o{schema}{savedSearchAlertMaxRecs};
+        my $cnt = 0;
 
-        $rec{alert_uids} = join('~', @uids);
+        # if we are tracking when records are added
+        if ($rec{alert_mask} & 1) {
+          while (my $h = $sth->fetchrow_hashref()) {
+            push @uids, $$h{U_ID};
+            die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count to under $$o{schema}{savedSearchAlertMaxRecs} rows to get your saved seach alert working again." if ++$cnt >= $$o{schema}{savedSearchAlertMaxRecs};
+          }
+        }
+
+        $rec{alert_uids} = join('~', @uids) || undef;
       }
   
       # save saved search to db
@@ -183,7 +188,7 @@ sub on_open {
     }
     $rec ||= {};
     my $alerts_enabled = ($$rec{ALERT_MASK} > 0) ? 1 : 0;
-    $$rec{ALERT_MASK} ||= 1;
+    $$rec{ALERT_MASK} ||= 4;
     $$rec{ALERT_INTERVAL_MIN} ||= 1440;
     $$rec{ALERT_DOW} ||= '12345';
     $$rec{ALERT_START_HOUR} ||= 8;
@@ -200,6 +205,14 @@ sub on_open {
       $$rec{ALERT_END_HOUR} .= 'AM';
     }
 
+    # determine which box is checked
+    my %ck;
+    if ($$rec{ALERT_MASK} & 1) {
+      $ck{added} = 'checked';
+    } else {
+      $ck{present} = 'checked';
+    }
+
     $buf .= "
 <label>name <input type=text id=OQsaveSearchTitle value='".$o->escape_html($$rec{USER_TITLE})."'></label>
 <fieldset id=OQSaveReportEmailAlertOpts".($alerts_enabled?' class=opened':'').">
@@ -207,9 +220,8 @@ sub on_open {
 
   <p>
   <label>when records are:</label>
-  <label><input type=checkbox name=OQalert_mask value=1".(($$rec{ALERT_MASK} & 1)?' checked':'')."> added</label>
-  <label><input type=checkbox name=OQalert_mask value=2".(($$rec{ALERT_MASK} & 2)?' checked':'')."> removed</label>
-  <label><input type=checkbox name=OQalert_mask value=4".(($$rec{ALERT_MASK} & 4)?' checked':'')."> present</label>
+  <label><input type=radio name=OQalert_mask value=1 $ck{added}> added</label>
+  <label><input type=radio name=OQalert_mask value=4 $ck{present}> present</label>
     
   <p>
   <label>check every: <input type=text id=OQalert_interval_min size=4 maxlength=6 value='".$o->escape_html($$rec{ALERT_INTERVAL_MIN})."'> minutes</label>
@@ -291,20 +303,20 @@ sub custom_output_handler {
   # at the end of processing all previously found uids that weren't seen will still be marked 1
   # which indicates the record is no longer within the report
   my $cnt = 0;
-  my $dataTruc = 0;
+  my $dataTrunc = 0;
   my $row_cnt = 0;
   my $buf;
   { my $filter = $o->get_filter();
-    $buf .= "<p><strong>Query: </strong>"
+    $buf .= "\n<p><strong>Query: </strong>"
       .escapeHTML($$o{queryDescr}) if $$o{queryDescr};
-    $buf .= "<p><strong>Filter: </strong>"
+    $buf .= "\n<p><strong>Filter: </strong>"
       .escapeHTML($filter) if $filter;
-    $buf .= "<p><table class=OQdata><thead><tr><td></td>";
+    $buf .= "\n<p><table class=OQdata><thead><tr><td></td>";
     foreach my $colAlias (@{ $o->get_usersel_cols }) {
       my $colOpts = $$o{schema}{select}{$colAlias}[3];
-      $buf .= "<td>".escapeHTML($o->get_nice_name($colAlias))."</td>";
+      $buf .= "\n<td>".escapeHTML($o->get_nice_name($colAlias))."</td>";
     }
-    $buf .= "</tr></thead><tbody>";
+    $buf .= "\n</tr></thead><tbody>";
   }
 
   # remember state param vals that were used so we can provide a link to view the live data
@@ -318,7 +330,6 @@ sub custom_output_handler {
   }
 
   while (my $rec = $o->sth->fetchrow_hashref()) {
-    die "MAX_ROWS_EXCEEDED - your report contains too many rows to send alerts via email. Reduce the total row count of your report by adding additional filters." if ++$cnt > $$o{schema}{savedSearchAlertMaxRecs};
     $opts{mutateRecord}->($rec) if ref($opts{mutateRecord}) eq 'CODE';
 
     # if this record has been seen before, mark it with a '2'
@@ -332,7 +343,7 @@ sub custom_output_handler {
     }
 
     # if we need to output report
-    if (! $dataTruc && (
+    if (! $dataTrunc && (
              # output if when rows are present is checked
              ($$current_saved_search{ALERT_MASK} & 4)
              # output if when rows are added is checked AND this is a new row not seen before
@@ -353,11 +364,11 @@ sub custom_output_handler {
         $link = $opts{editLink}.(($opts{editLink} =~ /\?/)?'&':'?')."act=load&id=$$rec{U_ID}";
       }
 
-      $buf .= "<tr";
+      $buf .= "\n<tr";
 
       # if this record is first time visible
       $buf .= " class=ftv" if $$current_saved_search{uids}{$$rec{U_ID}}==3;
-      $buf .= "><td>";
+      $buf .= ">\n<td>";
       if ($link) {
         if ($link !~ /^https?\:\/\//i) {
           $link = $$current_saved_search{opts}{base_url}.'/'.$link;
@@ -378,19 +389,19 @@ sub custom_output_handler {
         } else {
           $val = escapeHTML($$rec{$col});
         }
-        $buf .= "<td>$val</td>";
+        $buf .= "\n<td>$val</td>";
       }
-      $buf .= "</tr>\n";
+      $buf .= "\n</tr>";
 
-      $dataTruc = 1 if length($buf) > $$o{schema}{savedSearchAlertEmailCharLimit};
+      $dataTrunc = 1 if length($buf) > $$o{schema}{savedSearchAlertEmailCharLimit};
     }
   }
   $o->sth->finish();
 
   # if we found rows, encase it in a table with thead
   if ($row_cnt > 0) {
-    $buf .= "</tbody></table>";
-    $buf .= "<p><strong>This report does not show all data found because the report exceeds the maximum limit. Reduce report size by hiding columns, adding additional filters, or only showing new records.</strong>" if $dataTruc;
+    $buf .= "\n</tbody></table>";
+    $buf .= "<p><strong>This report does not show all data found because the report exceeds the maximum limit of $$o{schema}{savedSearchAlertEmailCharLimit} characters. Reduce report size by hiding columns, adding additional filters, or only showing added records.</strong>" if $dataTrunc;
     $$current_saved_search{buf} = $buf;
   }
 
@@ -482,10 +493,10 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
       $sql .= "\nAND (strftime('%s','now') - strftime('%s',COALESCE(alert_last_dt,'2000-01-01'))) > alert_interval_min";
     }
     elsif ($$dbh{Driver}{Name} eq 'mysql') {
-      $sql .= "\nAND alert_last_dt <= DATE_SUB(NOW(), INTERVAL alert_interval_min MINUTE)";
+      $sql .= "\nAND COALESCE(alert_last_dt,'1970-01-01') <= DATE_SUB(NOW(), INTERVAL alert_interval_min MINUTE)";
     }
     elsif ($$dbh{Driver}{Name} eq 'Pg') {
-      $sql .= "\nAND ((CURRENT_TIMESTAMP - alert_last_dt) * 24 * 60) > alert_interval_min";
+      $sql .= "\nAND ((CURRENT_TIMESTAMP - COALESCE(alert_last_dt,'1970-01-01'::date)) * 24 * 60) > alert_interval_min";
     }
     elsif ($$dbh{Driver}{Name} eq 'Microsoft SQL Server') {
       $sql .= "\nAND DATEADD(minute, alert_interval_min, alert_last_dt) < CURRENT_TIMESTAMP";
@@ -561,13 +572,18 @@ AND ? BETWEEN alert_start_hour AND alert_end_hour";
       $$rec{err_msg} =~ s/\ at\ .*//;
     }
 
-    # skip this search search alert if we could not get an email address
-    next unless $$rec{email_to} =~ /\@/;
+    # if no email address
+    if ($$rec{email_to} !~ /\@/) {
+      my $now = get_sysdate_sql($dbh);
+      $dbh->do("UPDATE oq_saved_search SET alert_last_dt=$now, alert_err='invalid email address' WHERE id=?", undef, $$rec{ID});
+      $current_saved_search = undef;
+      next;
+    }
 
     my @update_uids;
-    # if there was an error processing saved search, send user an email
     if ($$rec{err_msg}) {
-      $opts{error_handler}->("err", "Error: $@\n\nsaved search:\n".Dumper($rec)."\n\nENV:\n".Dumper(\%ENV)."\n\n");
+      #$opts{error_handler}->("err", "Error: $@\n\nsaved search:\n".Dumper($rec)."\n\nENV:\n".Dumper(\%ENV)."\n\n");
+      $opts{error_handler}->("err", "Error: $@\n\nsaved search:\n".Dumper($rec)) unless $$rec{err_msg} =~ /^MAX_ROWS_EXCEEDED/;
       if ($$rec{email_to}) {
         my %email;
 
@@ -634,7 +650,7 @@ Please contact your administrator if you are unable to fix the problem."
         $email{subject} .= " ($total_new added)" if $total_new > 0; 
 
         $email{body} = 
-"<html>
+"<html lang='en'>
 <head>
 <title>".escapeHTML("$$rec{OQ_TITLE} - $$rec{USER_TITLE}")."</title>
 <style>

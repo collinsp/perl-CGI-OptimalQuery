@@ -175,7 +175,7 @@ sub oq {
   foreach my $k (qw( page rows_page show filter hiddenFilter queryDescr sort oqmode )) { 
     if (exists $$schemaparams{$k}) {
       $$o{$k} = $$schemaparams{$k};
-    } elsif (defined $$o{q}->param($k)) {
+    } elsif (! exists $$o{schema}{params} && defined $$o{q}->param($k)) {
       $$o{$k} = $$o{q}->param($k);
     } else {
       $$o{$k} = $$o{schema}{$k};
@@ -446,7 +446,7 @@ sub csrf_field {
 
 sub csrf_token {
   my ($o, @do_not_tamper_params) = @_;
-  my @do_not_tamper_vals = map { join('|', $$o{q}->param($_)) } @do_not_tamper_params;
+  my @do_not_tamper_vals = map { join('|', scalar($$o{q}->param($_))) } @do_not_tamper_params;
   return $o->csrf_token_vals(@do_not_tamper_vals);
 }
 
@@ -480,7 +480,7 @@ sub csrf_check {
   my ($cksum1, $salt, @tokens);
   if ($cksum0 =~ s/(.{5})$//) {
     my $salt = $1;
-    @tokens = ($$o{schema}{server_secret},$salt,$$o{schema}{savedSearchUserID},map { join('|', $$o{q}->param($_)) } @do_not_tamper_params);
+    @tokens = ($$o{schema}{server_secret},$salt,$$o{schema}{savedSearchUserID},map { join('|', scalar($$o{q}->param($_))) } @do_not_tamper_params);
     $cksum1 = sha256_base64(@tokens); $cksum1 =~ s/\W//g;
   }
   if ($cksum0 ne $cksum1) {
